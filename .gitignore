@@ -6,3 +6,5 @@ __recovery
 *.identcache
 *.stat
 *.dproj.local
+*.groupproj
+*.groupproj.local
