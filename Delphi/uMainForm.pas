@@ -54,7 +54,7 @@ begin
     Renderer.Scene.Add(TSphere.Create(TVec3F.Create(0, -100.5, -1), 100));
 
     QueryPerformanceCounter(StartTime);
-      Image := Renderer.Render(imgRender.ClientWidth div 8, imgRender.ClientHeight div 8);
+      Image := Renderer.Render(imgRender.ClientWidth div 2, imgRender.ClientHeight div 2);
     QueryPerformanceCounter(EndTime);
     QueryPerformanceFrequency(Freq);
 

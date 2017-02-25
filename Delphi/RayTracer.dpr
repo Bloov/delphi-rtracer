@@ -12,7 +12,8 @@ uses
   uColor in 'uColor.pas',
   uHitable in 'uHitable.pas',
   uScene in 'uScene.pas',
-  uCamera in 'uCamera.pas';
+  uCamera in 'uCamera.pas',
+  uSamplingUtils in 'uSamplingUtils.pas';
 
 {$R *.res}
 

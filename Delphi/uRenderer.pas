@@ -26,7 +26,7 @@ type
 implementation
 
 uses
-  SysUtils, uMathUtils, uHitable;
+  SysUtils, uMathUtils, uHitable, uSamplingUtils;
 
 { TRenderer }
 constructor TRenderer.Create(AScene: TScene);
@@ -44,7 +44,7 @@ end;
 
 function TRenderer.Render(AWidth, AHeight: Integer): TImage2D;
 const
-  cSPP = 100;
+  cSPP = 40;
 var
   X, Y, Sample: Integer;
   U, V: Single;
@@ -65,7 +65,7 @@ begin
         Color := Color + GetColor(Ray);
       end;
       Color := Color / cSPP;
-      Result[X, Y] := Color.GetFlat;
+      Result[X, Y] := GammaCorrection(Color, 2).GetFlat;
     end;
 end;
 
@@ -73,9 +73,15 @@ function TRenderer.GetColor(const ARay: TRay): TColorVec;
 var
   T: Single;
   Hit: TRayHit;
+  Target: TVec3F;
 begin
   if Scene.Hit(ARay, Hit) then
-    Result := 0.5 * TColorVec.Create(Hit.Normal.X + 1, Hit.Normal.Y + 1, Hit.Normal.Z + 1)
+  begin
+    Target := Hit.Point + Hit.Normal * 1e-5 + RandomOnUnitSphere.Rotate(Hit.Normal);
+    //Target := Hit.Point + Hit.Normal +  RandomInUnitSphere;
+    Result := 0.5 * GetColor(TRay.Create(Hit.Point, Target - Hit.Point));
+    //Result := 0.5 * TColorVec.Create(Hit.Normal.X + 1, Hit.Normal.Y + 1, Hit.Normal.Z + 1);
+  end
   else
   begin
     T := 0.5 * (ARay.Direction.Y + 1);

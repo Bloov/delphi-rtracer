@@ -68,6 +68,8 @@ type
     function Clip(ALength: Single): TVec3F;
     function Stretch(ALength: Single): TVec3F;
 
+    function Rotate(const ANormal: TVec3F): TVec3F;
+
     function Length(): Single; inline;
     function LengthSqr(): Single; inline;
 
@@ -82,6 +84,9 @@ type
   end;
 
 implementation
+
+uses
+  uMathUtils;
 
 { TVec2F }
 constructor TVec2F.Create(aX, aY: Single);
@@ -407,6 +412,23 @@ begin
     Result.Y := Y * Norm;
     Result.Z := Z * Norm;
   end;
+end;
+
+function TVec3F.Rotate(const ANormal: TVec3F): TVec3F;
+var
+  bX, bZ: TVec3F;
+begin
+  // If the normal vector is already the world space upwards (or downwards) vector, don't do anything
+  if not NearValue(ANormal.Dot(TVec3F.Create(0, 1, 0)), 1, 1e-3) then
+  begin
+    // Build the orthonormal basis of the normal vector.
+    bX := ANormal.Cross(TVec3F.Create(0, 1, 0)).Normalize;
+    bZ := ANormal.Cross(bX).Normalize;
+    // Transform the unit vector to this basis.
+    Result := bX * X + ANormal * Y + bZ * Z;
+  end
+  else
+    Result := Self * uMathUtils.Sign(Self.Dot(ANormal));
 end;
 
 function TVec3F.Length(): Single;

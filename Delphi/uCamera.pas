@@ -12,6 +12,7 @@ type
     FAspectRatio: Single;
   public
     procedure SetupView(AWidth, AHeight: Integer); virtual;
+
     function GetRay(U, V: Single): TRay; virtual; abstract;
 
     property Width: Integer read FWidth;
@@ -26,6 +27,7 @@ type
     FHorz, FVert: TVec3F;
   public
     procedure SetupView(AWidth, AHeight: Integer); override;
+
     function GetRay(U, V: Single): TRay; override;
   end;
 

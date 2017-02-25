@@ -74,11 +74,13 @@ end;
 
 function TScene.Add(AObject: THitable): Integer;
 begin
+  Result := -1;
   if AObject = nil then
     Exit;
 
   EnsureCapacityEnough;
   FItems[FCount] := AObject;
+  Result := FCount;
   Inc(FCount);
 end;
 

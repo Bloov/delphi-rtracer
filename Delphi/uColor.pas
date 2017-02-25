@@ -31,26 +31,12 @@ type
 function GetColorFromRGB(R, G, B: Integer): Cardinal;
 procedure GetRGBFromColor(AColor: Cardinal; out R, G, B: Integer);
 
+function GammaCorrection(const AColor: TColorVec; AGamma: Single): TColorVec;
+
 implementation
 
 uses
-  uMathUtils;
-
-{ Flat color }
-function GetColorFromRGB(R, G, B: Integer): Cardinal;
-begin
-  R := Clamp(R, 0, 255);
-  G := Clamp(G, 0, 255);
-  B := Clamp(B, 0, 255);
-  Result := R shl 16 + G shl 8 + B;
-end;
-
-procedure GetRGBFromColor(AColor: Cardinal; out R, G, B: Integer);
-begin
-  B := AColor and $FF;
-  G := (AColor shr 8) and $FF;
-  R := (AColor shr 16) and $FF;
-end;
+  Math, uMathUtils;
 
 { TColorVec }
 constructor TColorVec.Create(Red, Green, Blue: Single);
@@ -124,14 +110,36 @@ end;
 
 function TColorVec.GetFlat(): Cardinal;
 var
-  Norm: Single;
   Red, Green, Blue: Integer;
 begin
-  Norm := 255 / Max(R, Max(G, B));
-  Red := Round(R * Norm);
-  Green := Round(G * Norm);
-  Blue := Round(B * Norm);
+  Red := Round(R * 255);
+  Green := Round(G * 255);
+  Blue := Round(B * 255);
   Result := GetColorFromRGB(Red, Green, Blue);
+end;
+
+{ Flat color }
+function GetColorFromRGB(R, G, B: Integer): Cardinal;
+begin
+  R := Clamp(R, 0, 255);
+  G := Clamp(G, 0, 255);
+  B := Clamp(B, 0, 255);
+  Result := R shl 16 + G shl 8 + B;
+end;
+
+procedure GetRGBFromColor(AColor: Cardinal; out R, G, B: Integer);
+begin
+  B := AColor and $FF;
+  G := (AColor shr 8) and $FF;
+  R := (AColor shr 16) and $FF;
+end;
+
+function GammaCorrection(const AColor: TColorVec; AGamma: Single): TColorVec;
+var
+  Pow: Single;
+begin
+  Pow := 1 / AGamma;
+  Result := TColorVec.Create(Power(AColor.R, Pow), Power(AColor.G, Pow), Power(AColor.B, Pow));
 end;
 
 end.
