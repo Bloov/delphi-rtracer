@@ -32,3 +32,24 @@ begin
   Result := Min(Max(AValue, AMin), AMax);
 end;
 {$ENDIF}
+
+{$IFDEF Sign}
+begin
+  if AValue < 0 then
+    Result := -1
+  else
+    Result := 1;
+end;
+{$ENDIF}
+
+{$IFDEF NearZero}
+begin
+  Result := (Abs(AValue) < Eps);
+end;
+{$ENDIF}
+
+{$IFDEF NearValue}
+begin
+  Result := (Abs(AValue - ATarget) < Eps);
+end;
+{$ENDIF}
