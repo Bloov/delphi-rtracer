@@ -73,8 +73,8 @@ type
     function Length(): Single; inline;
     function LengthSqr(): Single; inline;
 
-    function IsZero(): Boolean;
-    function IsAnyZero(): Boolean;
+    function IsZero(): Boolean; inline;
+    function IsAnyZero(): Boolean; inline;
     function IsValid(): Boolean;
     function IsInf(): Boolean;
 
@@ -416,16 +416,16 @@ end;
 
 function TVec3F.Rotate(const ANormal: TVec3F): TVec3F;
 var
-  bX, bZ: TVec3F;
+  bX, bY: TVec3F;
 begin
   // If the normal vector is already the world space upwards (or downwards) vector, don't do anything
-  if not NearValue(ANormal.Dot(TVec3F.Create(0, 1, 0)), 1, 1e-3) then
+  if not NearValue(ANormal.Dot(TVec3F.Create(0, 0, 1)), 1, 1e-3) then
   begin
     // Build the orthonormal basis of the normal vector.
-    bX := ANormal.Cross(TVec3F.Create(0, 1, 0)).Normalize;
-    bZ := ANormal.Cross(bX).Normalize;
+    bX := ANormal.Cross(TVec3F.Create(0, 0, 1)).Normalize;
+    bY := ANormal.Cross(bX).Normalize;
     // Transform the unit vector to this basis.
-    Result := bX * X + ANormal * Y + bZ * Z;
+    Result := bX * X + bY * Y + ANormal * Z;
   end
   else
     Result := Self * uMathUtils.Sign(Self.Dot(ANormal));

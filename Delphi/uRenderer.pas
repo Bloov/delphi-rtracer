@@ -17,7 +17,7 @@ type
     function Render(AWidth, AHeight: Integer): TImage2D;
     //procedure Render(ATarget: TImageAccumulator);
 
-    function GetColor(const ARay: TRay): TColorVec;
+    function GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
 
     property Scene: TScene read FScene;
     property Camera: TCamera read FCamera;
@@ -44,7 +44,7 @@ end;
 
 function TRenderer.Render(AWidth, AHeight: Integer): TImage2D;
 const
-  cSPP = 40;
+  cSPP = 10;
 var
   X, Y, Sample: Integer;
   U, V: Single;
@@ -62,14 +62,14 @@ begin
         U := (X + RandomF) / AWidth;
         V := (Y + RandomF) / AHeight;
         Ray := Camera.GetRay(U, V);
-        Color := Color + GetColor(Ray);
+        Color := Color + GetColor(Ray, 0);
       end;
       Color := Color / cSPP;
       Result[X, Y] := GammaCorrection(Color, 2).GetFlat;
     end;
 end;
 
-function TRenderer.GetColor(const ARay: TRay): TColorVec;
+function TRenderer.GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
 var
   T: Single;
   Hit: TRayHit;
@@ -77,15 +77,20 @@ var
 begin
   if Scene.Hit(ARay, Hit) then
   begin
-    Target := Hit.Point + Hit.Normal * 1e-5 + RandomOnUnitSphere.Rotate(Hit.Normal);
-    //Target := Hit.Point + Hit.Normal +  RandomInUnitSphere;
-    Result := 0.5 * GetColor(TRay.Create(Hit.Point, Target - Hit.Point));
-    //Result := 0.5 * TColorVec.Create(Hit.Normal.X + 1, Hit.Normal.Y + 1, Hit.Normal.Z + 1);
+    if ADepth < 50 then
+    begin
+      Result := 0.5 * GetColor(TRay.Create(Hit.Point + Hit.Normal * 1e-5, RandomOnUnitHemisphere.Rotate(Hit.Normal)), ADepth + 1);
+      //Result := 0.5 * TColorVec.Create(Hit.Normal.X + 1, Hit.Normal.Y + 1, Hit.Normal.Z + 1);
+    end
+    else
+      //Result := TColorVec.Create(255 - ADepth * 5, 255 - ADepth * 5, 255 - ADepth * 5);
+      Result :=  TColorVec.Create(0.0, 0.0, 0.0);
   end
   else
   begin
     T := 0.5 * (ARay.Direction.Y + 1);
     Result := (1 - T) * TColorVec.Create(1.0, 1.0, 1.0) + T * TColorVec.Create(0.5, 0.7, 1.0);
+    //Result := TColorVec.Create(255 - ADepth * 5, 255 - ADepth * 5, 255 - ADepth * 5);
   end;
 end;
 
