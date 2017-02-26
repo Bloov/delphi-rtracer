@@ -70,7 +70,6 @@ type
     function Stretch(ALength: Single): TVec3F;
 
     function Rotate(const ANormal: TVec3F): TVec3F;
-    function Reflec(const ANormal: TVec3F): TVec3F;
 
     function Length(): Single; inline;
     function LengthSqr(): Single; inline;
@@ -438,11 +437,6 @@ begin
   end
   else
     Result := Self * uMathUtils.Sign(Self.Dot(ANormal));
-end;
-
-function TVec3F.Reflec(const ANormal: TVec3F): TVec3F;
-begin
-  Result := Self - 2 * Self.Dot(ANormal) * ANormal;
 end;
 
 function TVec3F.Length(): Single;

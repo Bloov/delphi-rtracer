@@ -76,6 +76,8 @@ begin
         V := (Y + RandomF) / AHeight;
         Ray := Camera.GetRay(U, V);
         Color := Color + GetColor(Ray, 0);
+        //Color := Color + GetDepthColor(Ray, 0);
+        //Color := Color + GetScatteredAtDepth(Ray, 0, 2);
         //Color := Color + GetColorAtDepth(Ray, 0, 5);
       end;
       Color := Color / cSPP;

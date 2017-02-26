@@ -9,8 +9,11 @@ function RandomInUnitSphere(): TVec3F;
 
 function RandomOnUnitSphere(): TVec3F;
 function RandomOnUnitHemisphere(): TVec3F;
-
+// Generate a random microfacet normal based on the Beckmann distribution with the given roughness
 function RandomMicrofacetNormal(Roughness: Single): TVec3F;
+
+function Reflect(const AVec, ANormal: TVec3F): TVec3F;
+function Refract(const AVec, ANormal: TVec3F; ARefraction: Single; var Refracted: TVec3F): Boolean;
 
 implementation
 
@@ -57,7 +60,6 @@ var
   x1, x2: Single;
   theta, phi: Single;
 begin
-  // Generate a random microfacet normal based on the Beckmann distribution with the given roughness.
   x1 := RandomF;
   x2 := RandomF;
   if x1 < 1 then
@@ -68,5 +70,24 @@ begin
   Result := TVec3F.CreateUnitSpherical(Phi, Theta);
 end;
 
+function Reflect(const AVec, ANormal: TVec3F): TVec3F;
+begin
+  Result := AVec - 2 * AVec.Dot(ANormal) * ANormal;
+end;
+
+function Refract(const AVec, ANormal: TVec3F; ARefraction: Single; var Refracted: TVec3F): Boolean;
+var
+  Dt, D: Single;
+begin
+  Dt := AVec.Dot(ANormal);
+  D := 1 - ARefraction * ARefraction * (1 - Dt * Dt);
+  if D > 0 then
+  begin
+    Refracted := ARefraction * (AVec - ANormal * Dt) - ANormal * Sqrt(D);
+    Result := True;
+  end
+  else
+    Result := False;
+end;
 
 end.

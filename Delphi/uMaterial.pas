@@ -38,6 +38,18 @@ type
     property Roughness: Single read FRoughness;
   end;
 
+  TDielectric = class(TMaterial)
+  private
+    FRefraction: Single;
+  public
+    constructor Create(ARefraction: Single);
+
+    function Scatter(const AOrigin, AIncident, ANormal: TVec3F;
+      out Scattered: TRay; out Attenuation: TColorVec): Boolean; override;
+
+    property Refraction: Single read FRefraction;
+  end;
+
 implementation
 
 uses
@@ -84,11 +96,44 @@ begin
 
   Scattered.Origin := AOrigin + Normal * 1e-5;
   if Roughness = 0 then
-    Scattered.Direction := AIncident.Reflec(Normal)
+    Scattered.Direction := Reflect(AIncident, Normal)
   else
-    Scattered.Direction := AIncident.Reflec(RandomMicrofacetNormal(Roughness).Rotate(Normal));
+    Scattered.Direction := Reflect(AIncident, RandomMicrofacetNormal(Roughness).Rotate(Normal));
   Attenuation := Albedo;
   Result := Scattered.Direction.Dot(Normal) > 0;
+end;
+
+{ TDielectric }
+constructor TDielectric.Create(ARefraction: Single);
+begin
+  FRefraction := ARefraction;
+end;
+
+function TDielectric.Scatter(const AOrigin, AIncident, ANormal: TVec3F;
+  out Scattered: TRay; out Attenuation: TColorVec): Boolean;
+var
+  OutwardN: TVec3F;
+  RefractionIndex: Single;
+  Reflected, Refracted: TVec3F;
+begin
+  Attenuation := TColorVec.Create(1.0, 1.0, 1.0);
+  if AIncident.Dot(ANormal) > 0 then
+  begin
+    OutwardN := - ANormal;
+    RefractionIndex := Refraction;
+  end
+  else
+  begin
+    OutwardN := ANormal;
+    RefractionIndex := 1 / Refraction;
+  end;
+
+  Scattered.Origin := AOrigin - OutwardN * 1e-5;
+  Result := Refract(AIncident, OutwardN, RefractionIndex, Refracted);
+  if Result then
+    Scattered.Direction := Refracted
+  else
+    Scattered.Direction := Reflect(AIncident, ANormal);
 end;
 
 end.
