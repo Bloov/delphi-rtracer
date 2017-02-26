@@ -34,7 +34,7 @@ function NearValue(AValue, ATarget: Integer; Eps: Integer): Boolean; overload; i
 function NearValue(AValue, ATarget: Single; Eps: Single): Boolean; overload; inline;
 function NearValue(AValue, ATarget: Double; Eps: Double): Boolean; overload; inline;
 
-function RandomF(): Single; inline;
+function RandomF(): Single; //inline;
 
 implementation
 
@@ -100,8 +100,10 @@ function NearValue(AValue, ATarget: Double; Eps: Double): Boolean; {$I uMathUtil
 {$UNDEF NearValue}
 
 function RandomF(): Single;
+const
+  cTwoIn23 = 16777216; // To fall in to a single precision range
 begin
-  Result := Random(MaxInt) / MaxInt;
+  Result := Random(cTwoIn23) / cTwoIn23;
 end;
 
 end.

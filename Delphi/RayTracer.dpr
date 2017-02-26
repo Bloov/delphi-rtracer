@@ -13,7 +13,8 @@ uses
   uHitable in 'uHitable.pas',
   uScene in 'uScene.pas',
   uCamera in 'uCamera.pas',
-  uSamplingUtils in 'uSamplingUtils.pas';
+  uSamplingUtils in 'uSamplingUtils.pas',
+  uMaterial in 'uMaterial.pas';
 
 {$R *.res}
 

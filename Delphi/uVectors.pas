@@ -45,7 +45,8 @@ type
 
   TVec3F = packed record
   public
-    constructor Create(aX, aY, aZ: Single);
+    constructor Create(aX, aY, aZ: Single); overload;
+    constructor CreateUnitSpherical(Phi, Theta: Single);
 
     class operator Negative(const Vec: TVec3F): TVec3F; inline;
     class operator Positive(const Vec: TVec3F): TVec3F; inline;
@@ -69,6 +70,7 @@ type
     function Stretch(ALength: Single): TVec3F;
 
     function Rotate(const ANormal: TVec3F): TVec3F;
+    function Reflec(const ANormal: TVec3F): TVec3F;
 
     function Length(): Single; inline;
     function LengthSqr(): Single; inline;
@@ -263,6 +265,13 @@ begin
   Z := aZ;
 end;
 
+constructor TVec3F.CreateUnitSpherical(Phi, Theta: Single);
+begin
+  X := Sin(Theta) * Cos(Phi);
+  Y := Sin(Theta) * Sin(Phi);
+  Z := Cos(Theta);
+end;
+
 class operator TVec3F.Negative(const Vec: TVec3F): TVec3F;
 begin
   Result.X := -Vec.X;
@@ -429,6 +438,11 @@ begin
   end
   else
     Result := Self * uMathUtils.Sign(Self.Dot(ANormal));
+end;
+
+function TVec3F.Reflec(const ANormal: TVec3F): TVec3F;
+begin
+  Result := Self - 2 * Self.Dot(ANormal) * ANormal;
 end;
 
 function TVec3F.Length(): Single;

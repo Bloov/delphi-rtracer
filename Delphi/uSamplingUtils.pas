@@ -10,6 +10,8 @@ function RandomInUnitSphere(): TVec3F;
 function RandomOnUnitSphere(): TVec3F;
 function RandomOnUnitHemisphere(): TVec3F;
 
+function RandomMicrofacetNormal(Roughness: Single): TVec3F;
+
 implementation
 
 uses
@@ -49,5 +51,22 @@ begin
                           2.0 * x2 * Sqrt(1.0 - r),
                           r);}
 end;
+
+function RandomMicrofacetNormal(Roughness: Single): TVec3F;
+var
+  x1, x2: Single;
+  theta, phi: Single;
+begin
+  // Generate a random microfacet normal based on the Beckmann distribution with the given roughness.
+  x1 := RandomF;
+  x2 := RandomF;
+  if x1 < 1 then
+    theta := ArcTan(-Roughness * Roughness * Ln(1 - x1))
+  else
+    theta := Pi * 0.5;
+  phi := 2 * Pi * x2;
+  Result := TVec3F.CreateUnitSpherical(Phi, Theta);
+end;
+
 
 end.

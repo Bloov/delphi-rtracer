@@ -30,7 +30,7 @@ implementation
 {$R *.dfm}
 
 uses
-  uRenderer, uScene, uHitable;
+  uRenderer, uScene, uHitable, uMaterial, uColor;
 
 procedure TMainForm.AfterConstruction;
 begin
@@ -50,11 +50,13 @@ begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
-    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(0, 0, -1), 0.5));
-    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(0, -100.5, -1), 100));
+    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(0, 0, -1), 0.5, TLambertian.Create(TColorVec.Create(0.8, 0.3, 0.3))));
+    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(0, -100.5, -1), 100, TLambertian.Create(TColorVec.Create(0.8, 0.8, 0.0))));
+    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(1, 0, -1), 0.5, TMetal.Create(TColorVec.Create(0.8, 0.6, 0.2), 0.5)));
+    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(-1, 0, -1), 0.5, TMetal.Create(TColorVec.Create(0.8, 0.8, 0.8))));
 
     QueryPerformanceCounter(StartTime);
-      Image := Renderer.Render(imgRender.ClientWidth div 2, imgRender.ClientHeight div 2);
+      Image := Renderer.Render(imgRender.ClientWidth div 1, imgRender.ClientHeight div 1);
     QueryPerformanceCounter(EndTime);
     QueryPerformanceFrequency(Freq);
 

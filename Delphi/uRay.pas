@@ -16,15 +16,6 @@ type
     function At(ADistance: Single): TVec3F; inline;
   end;
 
-  TRayHit = packed record
-  public
-    Point: TVec3F;
-    Normal: TVec3F;
-    T: Single;
-
-    constructor Create(const APoint, ANormal: TVec3F; aT: Single);
-  end;
-
 implementation
 
 { TRay }
@@ -40,14 +31,6 @@ end;
 function TRay.At(ADistance: Single): TVec3F;
 begin
   Result := Origin + Direction * ADistance;
-end;
-
-{ TRayHit }
-constructor TRayHit.Create(const APoint, ANormal: TVec3F; aT: Single);
-begin
-  Point := APoint;
-  Normal := ANormal;
-  T := aT;
 end;
 
 end.

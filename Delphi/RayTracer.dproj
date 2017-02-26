@@ -138,6 +138,7 @@
         <DCCReference Include="uScene.pas"/>
         <DCCReference Include="uCamera.pas"/>
         <DCCReference Include="uSamplingUtils.pas"/>
+        <DCCReference Include="uMaterial.pas"/>
         <None Include="uMathUtils.inc"/>
         <None Include="uDynArrays.inc"/>
         <BuildConfiguration Include="Release">

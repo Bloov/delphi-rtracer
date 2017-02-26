@@ -107,10 +107,10 @@ begin
   for I := 0 to Count - 1 do
     if FItems[I].Hit(ARay, TmpHit) then
     begin
-      if not Result or (TmpHit.T < Closest) then
+      if not Result or (TmpHit.Distance < Closest) then
         Hit := TmpHit;
 
-      Closest := Hit.T;
+      Closest := Hit.Distance;
       Result := True;
     end;
 end;

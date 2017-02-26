@@ -10,6 +10,8 @@ type
   private
     FScene: TScene;
     FCamera: TCamera;
+
+    function GetEmptyColor(const ARay: TRay; ADepth: Integer): TColorVec;
   public
     constructor Create(AScene: TScene);
     destructor Destroy; override;
@@ -18,6 +20,9 @@ type
     //procedure Render(ATarget: TImageAccumulator);
 
     function GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
+    function GetDepthColor(const ARay: TRay; ADepth: Integer): TColorVec;
+    function GetScatteredAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
+    function GetColorAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
 
     property Scene: TScene read FScene;
     property Camera: TCamera read FCamera;
@@ -42,6 +47,14 @@ begin
   inherited;
 end;
 
+function TRenderer.GetEmptyColor(const ARay: TRay; ADepth: Integer): TColorVec;
+var
+  T: Single;
+begin
+  T := 0.5 * (ARay.Direction.Y + 1);
+  Result := (1 - T) * TColorVec.Create(1.0, 1.0, 1.0) + T * TColorVec.Create(0.5, 0.7, 1.0);
+end;
+
 function TRenderer.Render(AWidth, AHeight: Integer): TImage2D;
 const
   cSPP = 10;
@@ -63,6 +76,7 @@ begin
         V := (Y + RandomF) / AHeight;
         Ray := Camera.GetRay(U, V);
         Color := Color + GetColor(Ray, 0);
+        //Color := Color + GetColorAtDepth(Ray, 0, 5);
       end;
       Color := Color / cSPP;
       Result[X, Y] := GammaCorrection(Color, 2).GetFlat;
@@ -73,25 +87,101 @@ function TRenderer.GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
 var
   T: Single;
   Hit: TRayHit;
-  Target: TVec3F;
+  Scattered: TRay;
+  Attenuation: TColorVec;
 begin
   if Scene.Hit(ARay, Hit) then
   begin
-    if ADepth < 50 then
-    begin
-      Result := 0.5 * GetColor(TRay.Create(Hit.Point + Hit.Normal * 1e-5, RandomOnUnitHemisphere.Rotate(Hit.Normal)), ADepth + 1);
-      //Result := 0.5 * TColorVec.Create(Hit.Normal.X + 1, Hit.Normal.Y + 1, Hit.Normal.Z + 1);
-    end
+    if (ADepth < 50)
+      and Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation)
+    then
+      Result := Attenuation * GetColor(Scattered, ADepth + 1)
     else
-      //Result := TColorVec.Create(255 - ADepth * 5, 255 - ADepth * 5, 255 - ADepth * 5);
       Result :=  TColorVec.Create(0.0, 0.0, 0.0);
   end
   else
+    Result := GetEmptyColor(ARay, ADepth);
+end;
+
+function TRenderer.GetDepthColor(const ARay: TRay; ADepth: Integer): TColorVec;
+
+  function Depth2Color(ADepth: Integer): TColorVec;
+  var
+    T: Single;
   begin
-    T := 0.5 * (ARay.Direction.Y + 1);
-    Result := (1 - T) * TColorVec.Create(1.0, 1.0, 1.0) + T * TColorVec.Create(0.5, 0.7, 1.0);
-    //Result := TColorVec.Create(255 - ADepth * 5, 255 - ADepth * 5, 255 - ADepth * 5);
+    T := Sqrt(Exp(-ADepth));
+    Result := TColorVec.Create(T, T, T);
   end;
+
+var
+  Hit: TRayHit;
+  Scattered: TRay;
+  Attenuation: TColorVec;
+begin
+  if Scene.Hit(ARay, Hit) then
+  begin
+    if (ADepth < 50)
+      and Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation)
+    then
+      Result := GetDepthColor(Scattered, ADepth + 1)
+    else
+      Result := Depth2Color(ADepth);
+  end
+  else
+    Result := Depth2Color(ADepth);
+end;
+
+function TRenderer.GetScatteredAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
+
+  function Vec2Color(const AVec: TVec3F): TColorVec;
+  begin
+    Result := 0.5 * TColorVec.Create(AVec.X + 1, AVec.Y + 1, AVec.Z + 1);
+  end;
+
+var
+  Hit: TRayHit;
+  Scattered: TRay;
+  Attenuation: TColorVec;
+begin
+  if Scene.Hit(ARay, Hit) then
+  begin
+    if (ADepth < 50)
+      and Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation)
+    then
+      if ADepth <> ATargetDepth then
+        Result := GetScatteredAtDepth(Scattered, ADepth + 1, ATargetDepth)
+      else
+        Result := Vec2Color(Scattered.Direction)
+    else
+      Result := TColorVec.Create(0.0, 0.0, 0.0);
+  end
+  else
+    Result := TColorVec.Create(0.0, 0.0, 0.0);
+end;
+
+function TRenderer.GetColorAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
+var
+  Hit: TRayHit;
+  Scattered: TRay;
+  Attenuation: TColorVec;
+begin
+  if Scene.Hit(ARay, Hit) then
+  begin
+    if (ADepth < 50)
+      and Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation)
+    then
+      if ADepth <> ATargetDepth then
+        Result := Attenuation * GetColorAtDepth(Scattered, ADepth + 1, ATargetDepth)
+      else
+        Result := Attenuation
+    else
+      Result := TColorVec.Create(0.0, 0.0, 0.0);
+  end
+  else
+    if ADepth <> ATargetDepth then
+      Result := TColorVec.Create(0.0, 0.0, 0.0)
+    else
+      Result := GetEmptyColor(ARay, ADepth);
 end;
 
 end.
