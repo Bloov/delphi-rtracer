@@ -29,6 +29,7 @@ type
     function Distance(const Vec: TVec2F): Single; inline;
     function Clip(ALength: Single): TVec2F;
     function Stretch(ALength: Single): TVec2F;
+    function Lerp(const Target: TVec2F; Time: Single): TVec2F; inline;
 
     function Length(): Single; inline;
     function LengthSqr(): Single; inline;
@@ -56,10 +57,13 @@ type
     class operator Subtract(const A, B: TVec3F): TVec3F; inline;
     class operator Multiply(const A: TVec3F; B: Single): TVec3F; overload; inline;
     class operator Multiply(A: Single; const B: TVec3F): TVec3F; overload; inline;
-    class operator Multiply(const A, B: TVec3F): TVec3F; overload; inline;
+    class operator Multiply(const A, B: TVec3F): Single; overload; inline;
     class operator Divide(const A: TVec3F; B: Single): TVec3F; overload; inline;
     class operator Divide(A: Single; const B: TVec3F): TVec3F; overload; inline;
-    class operator Divide(const A, B: TVec3F): TVec3F; overload; inline;
+
+    // componentwise operations
+    function CMul(const Vec: TVec3F): TVec3F; inline;
+    function CDiv(const Vec: TVec3F): TVec3F; inline;
 
     function Dot(const Vec: TVec3F): Single; inline;
     function Cross(const Vec: TVec3F): TVec3F; inline;
@@ -68,7 +72,7 @@ type
     function Distance(const Vec: TVec3F): Single; inline;
     function Clip(ALength: Single): TVec3F;
     function Stretch(ALength: Single): TVec3F;
-
+    function Lerp(const Target: TVec3F; Time: Single): TVec3F; inline;
     function Rotate(const ANormal: TVec3F): TVec3F;
 
     function Length(): Single; inline;
@@ -84,10 +88,26 @@ type
       False: (X, Y, Z: Single);
   end;
 
+function Vec2F(X, Y: Single): TVec2F; inline;
+function Vec3F(X, Y, Z: Single): TVec3F; inline;
+
 implementation
 
 uses
   uMathUtils;
+
+function Vec2F(X, Y: Single): TVec2F;
+begin
+  Result.X := X;
+  Result.Y := Y;
+end;
+
+function Vec3F(X, Y, Z: Single): TVec3F;
+begin
+  Result.X := X;
+  Result.Y := Y;
+  Result.Z := Z;
+end;
 
 { TVec2F }
 constructor TVec2F.Create(aX, aY: Single);
@@ -226,6 +246,11 @@ begin
   end;
 end;
 
+function TVec2F.Lerp(const Target: TVec2F; Time: Single): TVec2F;
+begin
+  Result := (1 - Time) * Self + Time * Target;
+end;
+
 function TVec2F.Length(): Single;
 begin
   Result := Sqrt(X * X + Y * Y);
@@ -321,11 +346,9 @@ begin
   Result.Z := A * B.Z;
 end;
 
-class operator TVec3F.Multiply(const A, B: TVec3F): TVec3F;
+class operator TVec3F.Multiply(const A, B: TVec3F): Single;
 begin
-  Result.X := A.X * B.X;
-  Result.Y := A.Y * B.Y;
-  Result.Z := A.Z * B.Z;
+  Result := A.X * B.X + A.Y * B.Y + A.Z * B.Z;
 end;
 
 class operator TVec3F.Divide(const A: TVec3F; B: Single): TVec3F;
@@ -345,16 +368,23 @@ begin
   Result.Z := A / B.Z;
 end;
 
-class operator TVec3F.Divide(const A, B: TVec3F): TVec3F;
+function TVec3F.CMul(const Vec: TVec3F): TVec3F;
 begin
-  Result.X := A.X / B.X;
-  Result.Y := A.Y / B.Y;
-  Result.Z := A.Z / B.Z;
+  Result.X := X * Vec.X;
+  Result.Y := Y * Vec.Y;
+  Result.Z := Z * Vec.Z;
+end;
+
+function TVec3F.CDiv(const Vec: TVec3F): TVec3F;
+begin
+  Result.X := X / Vec.X;
+  Result.Y := Y / Vec.Y;
+  Result.Z := Z / Vec.Z;
 end;
 
 function TVec3F.Dot(const Vec: TVec3F): Single;
 begin
-  Result := X * Vec.X + Y * Vec.Y + Z * Vec.Z;
+  Result := Self * Vec;
 end;
 
 function TVec3F.Cross(const Vec: TVec3F): TVec3F;
@@ -422,15 +452,20 @@ begin
   end;
 end;
 
+function TVec3F.Lerp(const Target: TVec3F; Time: Single): TVec3F;
+begin
+  Result := (1 - Time) * Self + Time * Target;
+end;
+
 function TVec3F.Rotate(const ANormal: TVec3F): TVec3F;
 var
   bX, bY: TVec3F;
 begin
   // If the normal vector is already the world space upwards (or downwards) vector, don't do anything
-  if not NearValue(ANormal.Dot(TVec3F.Create(0, 0, 1)), 1, 1e-3) then
+  if not NearValue(ANormal * Vec3F(0, 0, 1), 1, 1e-3) then
   begin
     // Build the orthonormal basis of the normal vector.
-    bX := ANormal.Cross(TVec3F.Create(0, 0, 1)).Normalize;
+    bX := ANormal.Cross(Vec3F(0, 0, 1)).Normalize;
     bY := ANormal.Cross(bX).Normalize;
     // Transform the unit vector to this basis.
     Result := bX * X + bY * Y + ANormal * Z;

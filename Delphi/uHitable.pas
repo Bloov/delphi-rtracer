@@ -82,7 +82,7 @@ var
   Disc: Single;
 begin
   ToSphere := Center - ARay.Origin;
-  B := ToSphere.Dot(ARay.Direction);
+  B := ToSphere * ARay.Direction;
   C := ToSphere.LengthSqr - Radius * Radius;
   Disc := B * B - C;
   if Disc >= 0 then

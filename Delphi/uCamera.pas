@@ -48,10 +48,10 @@ end;
 procedure TSimpleCamera.SetupView(AWidth, AHeight: Integer);
 begin
   inherited SetupView(AWidth, AHeight);
-  FOrigin := TVec3F.Create(0, 0, 0);
-  FCorner := TVec3F.Create(-AspectRatio, 1, -1);
-  FHorz := AspectRatio * TVec3F.Create(2, 0, 0);
-  FVert := TVec3F.Create(0, 2, 0);
+  FOrigin := Vec3F(0, 0, 0);
+  FCorner := Vec3F(-AspectRatio, 1, -1);
+  FHorz := AspectRatio * Vec3F(2, 0, 0);
+  FVert := Vec3F(0, 2, 0);
 end;
 
 function TSimpleCamera.GetRay(U, V: Single): TRay;

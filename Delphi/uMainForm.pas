@@ -50,10 +50,10 @@ begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
-    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(0, 0, -1), 0.5, TLambertian.Create(TColorVec.Create(0.1, 0.2, 0.5))));
-    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(0, -100.5, -1), 100, TLambertian.Create(TColorVec.Create(0.8, 0.8, 0.0))));
-    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(1, 0, -1), 0.5, TMetal.Create(TColorVec.Create(0.8, 0.6, 0.2), 0.25)));
-    Renderer.Scene.Add(TSphere.Create(TVec3F.Create(-1, 0, -1), 0.5, TDielectric.Create(1.8)));
+    Renderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
+    Renderer.Scene.Add(TSphere.Create(Vec3F(0, -100.5, -1), 100, TLambertian.Create(ColorVec(0.8, 0.8, 0.0))));
+    Renderer.Scene.Add(TSphere.Create(Vec3F(1, 0, -1), 0.5, TMetal.Create(ColorVec(0.8, 0.6, 0.2), 0.25)));
+    Renderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TDielectric.Create(1.8)));
 
     QueryPerformanceCounter(StartTime);
       Image := Renderer.Render(imgRender.ClientWidth div 1, imgRender.ClientHeight div 1);

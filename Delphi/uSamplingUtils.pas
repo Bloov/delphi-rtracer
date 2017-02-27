@@ -23,7 +23,7 @@ uses
 function RandomInUnitSphere(): TVec3F;
 begin
   repeat
-    Result := 2 * TVec3F.Create(RandomF, RandomF, RandomF) - TVec3F.Create(1, 1, 1);
+    Result := 2 * Vec3F(RandomF, RandomF, RandomF) - Vec3F(1, 1, 1);
   until Result.LengthSqr < 1.0;
 end;
 
@@ -32,7 +32,7 @@ var
   SpherePoint: TVec3F;
 begin
   SpherePoint := RandomOnUnitHemisphere;
-  Result := TVec3F.Create(SpherePoint.X, SpherePoint.Y, SpherePoint.Z * Sign(0.5 - RandomF));
+  Result := Vec3F(SpherePoint.X, SpherePoint.Y, SpherePoint.Z * Sign(0.5 - RandomF));
 end;
 
 function RandomOnUnitHemisphere(): TVec3F;
@@ -44,15 +44,15 @@ begin
   x2 := RandomF;
   theta := 2 * Pi * x2;
   r := Sqrt(x1);
-  Result := TVec3F.Create(r * Cos(theta), r * Sin(theta), Sqrt(1 - x1));
+  Result := Vec3F(r * Cos(theta), r * Sin(theta), Sqrt(1 - x1));
   {repeat
     x1 := 2.0 * RandomF - 1.0;
     x2 := 2.0 * RandomF - 1.0;
     r := x1 * x1 + x2 * x2;
   until r <= 1.0;
-  Result := TVec3F.Create(2.0 * x1 * Sqrt(1.0 - r),
-                          2.0 * x2 * Sqrt(1.0 - r),
-                          r);}
+  Result := Vec3F(2.0 * x1 * Sqrt(1.0 - r),
+                  2.0 * x2 * Sqrt(1.0 - r),
+                  r);}
 end;
 
 function RandomMicrofacetNormal(Roughness: Single): TVec3F;
@@ -72,7 +72,7 @@ end;
 
 function Reflect(const AVec, ANormal: TVec3F): TVec3F;
 begin
-  Result := AVec - 2 * AVec.Dot(ANormal) * ANormal;
+  Result := AVec - 2 * (AVec * ANormal) * ANormal;
 end;
 
 function Refract(const AVec, ANormal: TVec3F; ARefraction: Single; var Refracted: TVec3F): Boolean;

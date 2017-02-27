@@ -52,7 +52,7 @@ var
   T: Single;
 begin
   T := 0.5 * (ARay.Direction.Y + 1);
-  Result := (1 - T) * TColorVec.Create(1.0, 1.0, 1.0) + T * TColorVec.Create(0.5, 0.7, 1.0);
+  Result := (1 - T) * ColorVec(1.0, 1.0, 1.0) + T * ColorVec(0.5, 0.7, 1.0);
 end;
 
 function TRenderer.Render(AWidth, AHeight: Integer): TImage2D;
@@ -69,7 +69,7 @@ begin
   for X := 0 to AWidth - 1 do
     for Y := 0 to AHeight - 1 do
     begin
-      Color := TColorVec.Create(0.0, 0.0, 0.0);
+      Color := ColorVec(0.0, 0.0, 0.0);
       for Sample := 1 to cSPP do
       begin
         U := (X + RandomF) / AWidth;
@@ -87,7 +87,6 @@ end;
 
 function TRenderer.GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
 var
-  T: Single;
   Hit: TRayHit;
   Scattered: TRay;
   Attenuation: TColorVec;
@@ -99,7 +98,7 @@ begin
     then
       Result := Attenuation * GetColor(Scattered, ADepth + 1)
     else
-      Result :=  TColorVec.Create(0.0, 0.0, 0.0);
+      Result :=  ColorVec(0.0, 0.0, 0.0);
   end
   else
     Result := GetEmptyColor(ARay, ADepth);
@@ -112,7 +111,7 @@ function TRenderer.GetDepthColor(const ARay: TRay; ADepth: Integer): TColorVec;
     T: Single;
   begin
     T := Sqrt(Exp(-ADepth));
-    Result := TColorVec.Create(T, T, T);
+    Result := ColorVec(T, T, T);
   end;
 
 var
@@ -137,7 +136,7 @@ function TRenderer.GetScatteredAtDepth(const ARay: TRay; ADepth, ATargetDepth: I
 
   function Vec2Color(const AVec: TVec3F): TColorVec;
   begin
-    Result := 0.5 * TColorVec.Create(AVec.X + 1, AVec.Y + 1, AVec.Z + 1);
+    Result := 0.5 * ColorVec(AVec.X + 1, AVec.Y + 1, AVec.Z + 1);
   end;
 
 var
@@ -155,10 +154,10 @@ begin
       else
         Result := Vec2Color(Scattered.Direction)
     else
-      Result := TColorVec.Create(0.0, 0.0, 0.0);
+      Result := ColorVec(0.0, 0.0, 0.0);
   end
   else
-    Result := TColorVec.Create(0.0, 0.0, 0.0);
+    Result := ColorVec(0.0, 0.0, 0.0);
 end;
 
 function TRenderer.GetColorAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
@@ -177,11 +176,11 @@ begin
       else
         Result := Attenuation
     else
-      Result := TColorVec.Create(0.0, 0.0, 0.0);
+      Result := ColorVec(0.0, 0.0, 0.0);
   end
   else
     if ADepth <> ATargetDepth then
-      Result := TColorVec.Create(0.0, 0.0, 0.0)
+      Result := ColorVec(0.0, 0.0, 0.0)
     else
       Result := GetEmptyColor(ARay, ADepth);
 end;

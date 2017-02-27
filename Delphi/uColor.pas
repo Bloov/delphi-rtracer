@@ -7,12 +7,8 @@ type
     constructor Create(Red, Green, Blue: Single); overload;
     constructor Create(Red, Green, Blue: Integer); overload;
 
-    {class operator Negative(const Vec: TVec3F): TVec3F; inline;
-    class operator Positive(const Vec: TVec3F): TVec3F; inline;
-    class operator Equal(const A, B: TVec3F): Boolean; inline;
-    class operator NotEqual(const A, B: TVec3F): Boolean; inline;}
     class operator Add(const C1, C2: TColorVec): TColorVec; inline;
-    {class operator Subtract(const A, B: TVec3F): TVec3F; inline;}
+    class operator Subtract(const C1, C2: TColorVec): TColorVec; inline;
     class operator Multiply(const C: TColorVec; F: Single): TColorVec; overload; inline;
     class operator Multiply(F: Single; const C: TColorVec): TColorVec; overload; inline;
     class operator Multiply(const C1, C2: TColorVec): TColorVec; overload; inline;
@@ -20,12 +16,16 @@ type
     class operator Divide(A: Single; const C: TColorVec): TColorVec; overload; inline;
     class operator Divide(const C1, C2: TColorVec): TColorVec; overload; inline;
 
+    function Lerp(const Target: TColorVec; Time: Single): TColorVec; inline;
+
     function GetFlat(): Cardinal;
 
     case Boolean of
       True: (Arr: array [0..2] of Single);
       False: (R, G, B: Single);
   end;
+
+function ColorVec(R, G, B: Single): TColorVec; inline;
 
 { Flat color }
 function GetColorFromRGB(R, G, B: Integer): Cardinal;
@@ -37,6 +37,13 @@ implementation
 
 uses
   Math, uMathUtils;
+
+function ColorVec(R, G, B: Single): TColorVec;
+begin
+  Result.R := R;
+  Result.G := G;
+  Result.B := B;
+end;
 
 { TColorVec }
 constructor TColorVec.Create(Red, Green, Blue: Single);
@@ -61,6 +68,13 @@ begin
   Result.R := C1.R + C2.R;
   Result.G := C1.G + C2.G;
   Result.B := C1.B + C2.B;
+end;
+
+class operator TColorVec.Subtract(const C1, C2: TColorVec): TColorVec;
+begin
+  Result.R := C1.R - C2.R;
+  Result.G := C1.G - C2.G;
+  Result.B := C1.B - C2.B;
 end;
 
 class operator TColorVec.Multiply(const C: TColorVec; F: Single): TColorVec;
@@ -106,6 +120,11 @@ begin
   Result.R := C1.R / C2.R;
   Result.G := C1.G / C2.G;
   Result.B := C1.B / C2.B;
+end;
+
+function TColorVec.Lerp(const Target: TColorVec; Time: Single): TColorVec;
+begin
+  Result := (1 - Time) * Self + Time * Target;
 end;
 
 function TColorVec.GetFlat(): Cardinal;

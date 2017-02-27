@@ -66,7 +66,7 @@ function TLambertian.Scatter(const AOrigin, AIncident, ANormal: TVec3F;
 var
   Normal: TVec3F;
 begin
-  {if AIncident.Dot(ANormal) > 0 then
+  {if AIncident * ANormal > 0 then
     Normal := -ANormal
   else}
     Normal := ANormal;
@@ -89,7 +89,7 @@ function TMetal.Scatter(const AOrigin, AIncident, ANormal: TVec3F;
 var
   Normal: TVec3F;
 begin
-  {if AIncident.Dot(ANormal) > 0 then
+  {if AIncident * ANormal) > 0 then
     Normal := -ANormal
   else}
     Normal := ANormal;
@@ -100,7 +100,7 @@ begin
   else
     Scattered.Direction := Reflect(AIncident, RandomMicrofacetNormal(Roughness).Rotate(Normal));
   Attenuation := Albedo;
-  Result := Scattered.Direction.Dot(Normal) > 0;
+  Result := (Scattered.Direction * Normal > 0);
 end;
 
 { TDielectric }
@@ -116,8 +116,8 @@ var
   RefractionIndex: Single;
   Reflected, Refracted: TVec3F;
 begin
-  Attenuation := TColorVec.Create(1.0, 1.0, 1.0);
-  if AIncident.Dot(ANormal) > 0 then
+  Attenuation := ColorVec(1.0, 1.0, 1.0);
+  if AIncident * ANormal > 0 then
   begin
     OutwardN := - ANormal;
     RefractionIndex := Refraction;
