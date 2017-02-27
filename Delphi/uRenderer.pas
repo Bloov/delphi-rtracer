@@ -17,7 +17,6 @@ type
     destructor Destroy; override;
 
     function Render(AWidth, AHeight: Integer): TImage2D;
-    //procedure Render(ATarget: TImageAccumulator);
 
     function GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
     function GetDepthColor(const ARay: TRay; ADepth: Integer): TColorVec;

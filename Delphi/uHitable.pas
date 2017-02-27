@@ -96,7 +96,7 @@ begin
     begin
       Result := True;
       Hit.Point := ARay.At(Dist);
-      Hit.Normal := (Hit.Point - Center).Normalize;
+      Hit.Normal := (Hit.Point - Center) / Radius;
       Hit.Distance := Dist;
       Hit.Material := Material;
     end
