@@ -30,7 +30,7 @@ implementation
 {$R *.dfm}
 
 uses
-  uRenderer, uScene, uHitable, uMaterial, uColor;
+  uRenderer, uCamera, uScene, uHitable, uMaterial, uColor;
 
 procedure TMainForm.AfterConstruction;
 begin
@@ -50,6 +50,8 @@ begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
+    Renderer.SetCamera(TPerspectiveCamera.Create(Vec3F(-2, 2, 1), Vec3F(-0.2, 0, -1), Vec3F(0, 1, 0), 45));
+
     Renderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
     Renderer.Scene.Add(TSphere.Create(Vec3F(0, -100.5, -1), 100, TLambertian.Create(ColorVec(0.8, 0.8, 0.0))));
     Renderer.Scene.Add(TSphere.Create(Vec3F(1, 0, -1), 0.5, TMetal.Create(ColorVec(0.8, 0.6, 0.2), 0.25)));

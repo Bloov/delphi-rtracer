@@ -16,6 +16,8 @@ type
     constructor Create(AScene: TScene);
     destructor Destroy; override;
 
+    procedure SetCamera(ACamera: TCamera);
+
     function Render(AWidth, AHeight: Integer): TImage2D;
 
     function GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
@@ -36,7 +38,6 @@ uses
 constructor TRenderer.Create(AScene: TScene);
 begin
   FScene := AScene;
-  FCamera := TSimpleCamera.Create;
 end;
 
 destructor TRenderer.Destroy;
@@ -47,11 +48,17 @@ begin
 end;
 
 function TRenderer.GetEmptyColor(const ARay: TRay; ADepth: Integer): TColorVec;
-var
-  T: Single;
 begin
-  T := 0.5 * (ARay.Direction.Y + 1);
-  Result := (1 - T) * ColorVec(1.0, 1.0, 1.0) + T * ColorVec(0.5, 0.7, 1.0);
+  Result := ColorVec(1.0, 1.0, 1.0).Lerp(ColorVec(0.5, 0.7, 1.0), 0.5 * (ARay.Direction.Y + 1));
+end;
+
+procedure TRenderer.SetCamera(ACamera: TCamera);
+begin
+  if ACamera = FCamera then
+    Exit;
+
+  FreeAndNil(FCamera);
+  FCamera := ACamera;
 end;
 
 function TRenderer.Render(AWidth, AHeight: Integer): TImage2D;
@@ -77,7 +84,7 @@ begin
         Color := Color + GetColor(Ray, 0);
         //Color := Color + GetDepthColor(Ray, 0);
         //Color := Color + GetScatteredAtDepth(Ray, 0, 2);
-        //Color := Color + GetColorAtDepth(Ray, 0, 5);
+        //Color := Color + GetColorAtDepth(Ray, 0, 10);
       end;
       Color := Color / cSPP;
       Result[X, Y] := GammaCorrection(Color, 2).GetFlat;

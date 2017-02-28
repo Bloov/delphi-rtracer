@@ -31,7 +31,25 @@ type
     function GetRay(U, V: Single): TRay; override;
   end;
 
+  TPerspectiveCamera = class(TCamera)
+  private
+    FOrigin, FTarget, FUp: TVec3F;
+    FFOV: Single;
+
+    FCenter: TVec3F;
+    FHorz, FVert: TVec3F;
+  public
+    constructor Create(const ALookFrom, ALookAt, AUp: TVec3F; FOV: Single);
+
+    procedure SetupView(AWidth, AHeight: Integer); override;
+
+    function GetRay(U, V: Single): TRay; override;
+  end;
+
 implementation
+
+uses
+  Math;
 
 { TCamera }
 procedure TCamera.SetupView(AWidth, AHeight: Integer);
@@ -57,6 +75,40 @@ end;
 function TSimpleCamera.GetRay(U, V: Single): TRay;
 begin
   Result := TRay.Create(FOrigin, FCorner + U * FHorz - V * FVert);
+end;
+
+{ TPerspectiveCamera }
+constructor TPerspectiveCamera.Create(const ALookFrom, ALookAt, AUp: TVec3F; FOV: Single);
+begin
+  FOrigin := ALookFrom;
+  FTarget := ALookAt;
+  FUp := AUp;
+  FFOV := FOV;
+end;
+
+procedure TPerspectiveCamera.SetupView(AWidth, AHeight: Integer);
+var
+  Theta: Single;
+  HalfHeight, HalfWidth: Single;
+  xAxis, yAxis, zAxis: TVec3F;
+begin
+  inherited SetupView(AWidth, AHeight);
+  Theta := FFOV * Pi / 180;
+  HalfWidth := Tan(Theta * 0.5);
+  HalfHeight := HalfWidth / AspectRatio;
+
+  zAxis := (FTarget - FOrigin).Normalize;
+  xAxis := FUp.Cross(zAxis).Normalize;
+  yAxis := zAxis.Cross(xAxis).Normalize;
+
+  FCenter := FOrigin + zAxis;
+  FHorz := 2 * HalfWidth * xAxis;
+  FVert := 2 * HalfHeight * yAxis;
+end;
+
+function TPerspectiveCamera.GetRay(U, V: Single): TRay;
+begin
+  Result := TRay.Create(FOrigin, FCenter + (0.5 - U) * FHorz + (0.5 - V) * FVert - FOrigin);
 end;
 
 end.
