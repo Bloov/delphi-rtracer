@@ -398,6 +398,7 @@ function TVec3F.Projection(const Vec: TVec3F): TVec3F;
 var
   Norm: Single;
 begin
+  // Result = Self * Dot(Self * Vec) / Dot(Vec * Vec)
   Norm := (X * Vec.X + Y * Vec.Y + Z * Vec.Z) / (X * X + Y * Y + Z * Z);
   Result.X := X * Norm;
   Result.Y := Y * Norm;

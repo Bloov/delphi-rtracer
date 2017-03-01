@@ -20,36 +20,35 @@ type
     property AspectRatio: Single read FAspectRatio;
   end;
 
-  TSimpleCamera = class(TCamera)
-  private
-    FOrigin: TVec3F;
-    FCorner: TVec3F;
-    FHorz, FVert: TVec3F;
-  public
-    procedure SetupView(AWidth, AHeight: Integer); override;
-
-    function GetRay(U, V: Single): TRay; override;
-  end;
-
   TPerspectiveCamera = class(TCamera)
   private
-    FOrigin, FTarget, FUp: TVec3F;
+    FCameraUp: TVec3F;
     FFOV: Single;
+    FAperture: Single;
+    FFocusDistance: Single;
 
     FCenter: TVec3F;
-    FHorz, FVert: TVec3F;
+    FForward, FHorz, FVert: TVec3F;
   public
-    constructor Create(const ALookFrom, ALookAt, AUp: TVec3F; FOV: Single);
+    constructor Create(const ALookFrom, ALookAt, AUp: TVec3F; FOV, Aperture, FocusDistance: Single); overload;
+    constructor Create(const ALookFrom, ALookAt, AUp: TVec3F; FOV, Aperture: Single); overload;
 
     procedure SetupView(AWidth, AHeight: Integer); override;
 
     function GetRay(U, V: Single): TRay; override;
+
+    property Position: TVec3F read FCenter;
+    property Direction: TVec3F read FForward;
+    property CameraUp: TVec3F read FCameraUp;
+    property Aperture: Single read FAperture;
+    property FieldOfView: Single read FFOV;
+    property FocusDistance: Single read FFocusDistance;
   end;
 
 implementation
 
 uses
-  Math;
+  Math, uSamplingUtils;
 
 { TCamera }
 procedure TCamera.SetupView(AWidth, AHeight: Integer);
@@ -62,53 +61,65 @@ begin
   FAspectRatio := FWidth / FHeight;
 end;
 
-{ TSimpleCamera }
-procedure TSimpleCamera.SetupView(AWidth, AHeight: Integer);
-begin
-  inherited SetupView(AWidth, AHeight);
-  FOrigin := Vec3F(0, 0, 0);
-  FCorner := Vec3F(-AspectRatio, 1, -1);
-  FHorz := AspectRatio * Vec3F(2, 0, 0);
-  FVert := Vec3F(0, 2, 0);
-end;
-
-function TSimpleCamera.GetRay(U, V: Single): TRay;
-begin
-  Result := TRay.Create(FOrigin, FCorner + U * FHorz - V * FVert);
-end;
-
 { TPerspectiveCamera }
-constructor TPerspectiveCamera.Create(const ALookFrom, ALookAt, AUp: TVec3F; FOV: Single);
+constructor TPerspectiveCamera.Create(const ALookFrom, ALookAt, AUp: TVec3F; FOV, Aperture, FocusDistance: Single);
 begin
-  FOrigin := ALookFrom;
-  FTarget := ALookAt;
-  FUp := AUp;
+  FCenter := ALookFrom;
+  FForward := (ALookAt - ALookFrom).Normalize;
+  FCameraUp := AUp;
   FFOV := FOV;
+  FAperture := Aperture;
+  FFocusDistance := FocusDistance;
+end;
+
+constructor TPerspectiveCamera.Create(const ALookFrom, ALookAt, AUp: TVec3F; FOV, Aperture: Single);
+begin
+  FCenter := ALookFrom;
+  FForward := (ALookAt - ALookFrom).Normalize;
+  FCameraUp := AUp;
+  FFOV := FOV;
+  FAperture := Aperture;
+  FFocusDistance := (ALookAt - ALookFrom).Length;
 end;
 
 procedure TPerspectiveCamera.SetupView(AWidth, AHeight: Integer);
 var
   Theta: Single;
   HalfHeight, HalfWidth: Single;
-  xAxis, yAxis, zAxis: TVec3F;
+  xAxis, yAxis: TVec3F;
 begin
   inherited SetupView(AWidth, AHeight);
   Theta := FFOV * Pi / 180;
   HalfWidth := Tan(Theta * 0.5);
   HalfHeight := HalfWidth / AspectRatio;
 
-  zAxis := (FTarget - FOrigin).Normalize;
-  xAxis := FUp.Cross(zAxis).Normalize;
-  yAxis := zAxis.Cross(xAxis).Normalize;
+  xAxis := CameraUp.Cross(Direction).Normalize;
+  yAxis := Direction.Cross(xAxis).Normalize;
 
-  FCenter := FOrigin + zAxis;
   FHorz := 2 * HalfWidth * xAxis;
   FVert := 2 * HalfHeight * yAxis;
 end;
 
 function TPerspectiveCamera.GetRay(U, V: Single): TRay;
+var
+  RayOrigin: TVec3F;
+  RayDirection: TVec3F;
+  ScreenPoint: TVec3F;
+  FocusPoint: TVec3F;
+  PointOnAperture: TVec2F;
 begin
-  Result := TRay.Create(FOrigin, FCenter + (0.5 - U) * FHorz + (0.5 - V) * FVert - FOrigin);
+  RayOrigin := FCenter;
+  // In screen plane image is inverted
+  ScreenPoint := RayOrigin - Direction - (0.5 - U) * FHorz - (0.5 - V) * FVert;
+  RayDirection := (RayOrigin - ScreenPoint).Normalize;
+  if Aperture > 0 then
+  begin
+    FocusPoint := RayOrigin + RayDirection * FocusDistance / RayDirection.Dot(Direction);
+    PointOnAperture := FAperture * RandomInUnitDisk;
+    RayOrigin := RayOrigin + PointOnAperture.X * FHorz + PointOnAperture.Y * FVert;
+    RayDirection := FocusPoint - RayOrigin;
+  end;
+  Result := TRay.Create(RayOrigin, RayDirection);
 end;
 
 end.

@@ -6,9 +6,11 @@ uses
   uVectors;
 
 function RandomInUnitSphere(): TVec3F;
+function RandomInUnitDisk(): TVec2F;
 
 function RandomOnUnitSphere(): TVec3F;
 function RandomOnUnitHemisphere(): TVec3F;
+
 // Generate a random microfacet normal based on the Beckmann distribution with the given roughness
 function RandomMicrofacetNormal(Roughness: Single): TVec3F;
 
@@ -28,6 +30,16 @@ begin
   repeat
     Result := 2 * Vec3F(RandomF, RandomF, RandomF) - Vec3F(1, 1, 1);
   until Result.LengthSqr < 1.0;
+end;
+
+function RandomInUnitDisk(): TVec2F;
+var
+  Theta, U: Single;
+begin
+  Theta := 2 * Pi * RandomF;
+  U := Sqrt(RandomF);
+  Result.X := U * Cos(Theta);
+  Result.Y := U * Sin(Theta);
 end;
 
 function RandomOnUnitSphere(): TVec3F;
