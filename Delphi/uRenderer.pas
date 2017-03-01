@@ -32,7 +32,7 @@ type
 implementation
 
 uses
-  SysUtils, uMathUtils, uHitable, uSamplingUtils;
+  SysUtils, uMathUtils, uHitable;
 
 { TRenderer }
 constructor TRenderer.Create(AScene: TScene);
@@ -63,7 +63,7 @@ end;
 
 function TRenderer.Render(AWidth, AHeight: Integer): TImage2D;
 const
-  cSPP = 10;
+  cSPP = 500;
 var
   X, Y, Sample: Integer;
   U, V: Single;

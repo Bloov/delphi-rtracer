@@ -96,9 +96,9 @@ begin
 
   Scattered.Origin := AOrigin + Normal * 1e-5;
   if Roughness = 0 then
-    Scattered.Direction := Reflect(AIncident, Normal)
+    Scattered.Direction := Reflect(AIncident, Normal).Normalize
   else
-    Scattered.Direction := Reflect(AIncident, RandomMicrofacetNormal(Roughness).Rotate(Normal));
+    Scattered.Direction := Reflect(AIncident, RandomMicrofacetNormal(Roughness).Rotate(Normal)).Normalize;
   Attenuation := Albedo;
   Result := (Scattered.Direction * Normal > 0);
 end;
@@ -140,9 +140,9 @@ begin
   Attenuation := ColorVec(1.0, 1.0, 1.0);
   Scattered.Origin := AOrigin - OutwardN * 1e-5;
   if RandomF < ReflectProb then
-    Scattered.Direction := Reflect(AIncident, ANormal)
+    Scattered.Direction := Reflect(AIncident, ANormal).Normalize
   else
-    Scattered.Direction := Refracted;
+    Scattered.Direction := Refracted.Normalize;
 
   Result := True;
 end;

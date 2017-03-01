@@ -47,6 +47,15 @@ object MainForm: TMainForm
       TabOrder = 0
       OnClick = btnRenderClick
     end
+    object btnSaveImage: TButton
+      Left = 146
+      Top = 16
+      Width = 113
+      Height = 33
+      Caption = 'Save Image'
+      TabOrder = 1
+      OnClick = btnSaveImageClick
+    end
   end
   object pRender: TPanel
     Left = 265
@@ -69,5 +78,11 @@ object MainForm: TMainForm
       ExplicitWidth = 105
       ExplicitHeight = 105
     end
+  end
+  object dlgSaveImage: TSaveDialog
+    DefaultExt = '*.png'
+    Filter = 'PNG Image|*.png'
+    Left = 16
+    Top = 496
   end
 end
