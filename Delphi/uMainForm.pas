@@ -17,8 +17,15 @@ type
     lblRenderTime: TLabel;
     dlgSaveImage: TSaveDialog;
     btnSaveImage: TButton;
+    btnBenchmarkCamera: TButton;
+    lbText: TListBox;
+    btnClearText: TButton;
+    btnBenchmarkScene: TButton;
     procedure btnRenderClick(Sender: TObject);
     procedure btnSaveImageClick(Sender: TObject);
+    procedure btnBenchmarkCameraClick(Sender: TObject);
+    procedure btnClearTextClick(Sender: TObject);
+    procedure btnBenchmarkSceneClick(Sender: TObject);
   private
     procedure MakeTestScene(ARenderer: TRenderer);
     procedure MakeRandomSpheresScene(ARenderer: TRenderer);
@@ -35,7 +42,7 @@ implementation
 {$R *.dfm}
 
 uses
-  VCL.Imaging.PngImage, uScene, uCamera, uHitable, uMaterial, uColor, uMathUtils;
+  VCL.Imaging.PngImage, uScene, uCamera, uHitable, uMaterial, uColor, uRay, uMathUtils;
 
 procedure TMainForm.AfterConstruction;
 begin
@@ -63,7 +70,7 @@ var
   MatProb: Single;
   Center: TVec3F;
 begin
-  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 20, 0.1, 10));
+  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 30, 0.1, 10));
 
   ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -1000, 0), 1000, TLambertian.Create(ColorVec(0.5, 0.5, 0.5))));
   for A := -11 to 11 do
@@ -90,7 +97,82 @@ begin
   ARenderer.Scene.Add(TSphere.Create(Vec3F(4, 1, 0), 1, TMetal.Create(ColorVec(0.7, 0.6, 0.5), 0)));
 end;
 
+procedure TMainForm.btnBenchmarkCameraClick(Sender: TObject);
+const
+  cSPP = 10;
+var
+  Camera: TPerspectiveCamera;
+  StartTime, EndTime, Freq: Int64;
+  X, Y, S: Integer;
+  U, V: Single;
+  Ray: TRay;
+  TotalRays, TotalTime: Single;
+begin
+  Camera := TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 45, 0.05, 10);
+  try
+    Camera.SetupView(1024, 1024);
+    QueryPerformanceCounter(StartTime);
+      for Y := 0 to 1023 do
+        for X := 0 to 1023 do
+        begin
+          U := X / 1024;
+          V := Y / 1024;
+          for S := 1 to cSPP do
+            Ray := Camera.GetRay(U, V);
+        end;
+    QueryPerformanceCounter(EndTime);
+    QueryPerformanceFrequency(Freq);
+
+    TotalTime := (EndTime - StartTime) / Freq;
+    TotalRays := 1024 * 1024 * cSPP;
+    lbText.Items.Add('Camera performance:');
+    lbText.Items.Add(Format('  %.3f MRays per second', [TotalRays / (TotalTime * 1e6)]));
+  finally
+    FreeAndNil(Camera);
+  end;
+end;
+
+procedure TMainForm.btnBenchmarkSceneClick(Sender: TObject);
+const
+  cSPP = 10;
+var
+  Renderer: TRenderer;
+  Image: TImage2D;
+  StartTime, EndTime, Freq: Int64;
+  TotalRays, TotalTime: Single;
+begin
+  Image := nil;
+  Renderer := TRenderer.Create(TScene.Create);
+  try
+    MakeRandomSpheresScene(Renderer);
+
+    QueryPerformanceCounter(StartTime);
+      Image := Renderer.Render(512, 512, cSPP);
+    QueryPerformanceCounter(EndTime);
+    QueryPerformanceFrequency(Freq);
+
+    TotalTime := (EndTime - StartTime) / Freq;
+    TotalRays := Renderer.EmitedRays;
+    lbText.Items.Add('Render performance:');
+    lbText.Items.Add(Format('  total time %.3f seconds', [TotalTime]));
+    lbText.Items.Add(Format('  %.3f MRays per second', [TotalRays / (TotalTime * 1e6)]));
+
+    imgRender.Picture.Bitmap := Image.GetAsBitmap;
+  finally
+    FreeAndNil(Image);
+    FreeAndNil(Renderer);
+  end;
+end;
+
+procedure TMainForm.btnClearTextClick(Sender: TObject);
+begin
+  lbText.Items.Clear;
+end;
+
 procedure TMainForm.btnRenderClick(Sender: TObject);
+const
+  cSPP = 10;
+  cDivRes = 1;
 var
   Renderer: TRenderer;
   Image: TImage2D;
@@ -102,7 +184,7 @@ begin
     MakeRandomSpheresScene(Renderer);
 
     QueryPerformanceCounter(StartTime);
-      Image := Renderer.Render(imgRender.ClientWidth div 1, imgRender.ClientHeight div 1);
+      Image := Renderer.Render(imgRender.ClientWidth div cDivRes, imgRender.ClientHeight div cDivRes, cSPP);
     QueryPerformanceCounter(EndTime);
     QueryPerformanceFrequency(Freq);
 

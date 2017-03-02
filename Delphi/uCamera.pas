@@ -117,7 +117,7 @@ begin
     FocusPoint := RayOrigin + RayDirection * FocusDistance / RayDirection.Dot(Direction);
     PointOnAperture := FAperture * RandomInUnitDisk;
     RayOrigin := RayOrigin + PointOnAperture.X * FHorz + PointOnAperture.Y * FVert;
-    RayDirection := FocusPoint - RayOrigin;
+    RayDirection := (FocusPoint - RayOrigin).Normalize;
   end;
   Result := TRay.Create(RayOrigin, RayDirection);
 end;

@@ -32,6 +32,7 @@ type
   private
     FCenter: TVec3F;
     FRadius: Single;
+    FNormalSign: Single;
   public
     constructor Create(const ACenter: TVec3F; ARadius: Single; AMaterial: TMaterial);
 
@@ -73,6 +74,7 @@ begin
   inherited Create(AMaterial);
   FCenter := ACenter;
   FRadius := ARadius;
+  FNormalSign := Sign(FRadius);
 end;
 
 function TSphere.Hit(const ARay: TRay; var Hit: TRayHit): Boolean;
@@ -96,7 +98,7 @@ begin
     begin
       Result := True;
       Hit.Point := ARay.At(Dist);
-      Hit.Normal := (Hit.Point - Center) / Radius;
+      Hit.Normal := FNormalSign * (Hit.Point - Center).Normalize;
       Hit.Distance := Dist;
       Hit.Material := Material;
     end

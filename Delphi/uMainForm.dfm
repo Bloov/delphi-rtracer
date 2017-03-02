@@ -56,6 +56,41 @@ object MainForm: TMainForm
       TabOrder = 1
       OnClick = btnSaveImageClick
     end
+    object btnBenchmarkCamera: TButton
+      Left = 8
+      Top = 104
+      Width = 113
+      Height = 33
+      Caption = 'Benchmark Camera'
+      TabOrder = 2
+      OnClick = btnBenchmarkCameraClick
+    end
+    object lbText: TListBox
+      Left = 8
+      Top = 368
+      Width = 251
+      Height = 169
+      ItemHeight = 13
+      TabOrder = 5
+    end
+    object btnClearText: TButton
+      Left = 176
+      Top = 337
+      Width = 75
+      Height = 25
+      Caption = 'Clear'
+      TabOrder = 4
+      OnClick = btnClearTextClick
+    end
+    object btnBenchmarkScene: TButton
+      Left = 8
+      Top = 143
+      Width = 113
+      Height = 33
+      Caption = 'Benchmark Scene'
+      TabOrder = 3
+      OnClick = btnBenchmarkSceneClick
+    end
   end
   object pRender: TPanel
     Left = 265
@@ -82,7 +117,7 @@ object MainForm: TMainForm
   object dlgSaveImage: TSaveDialog
     DefaultExt = '*.png'
     Filter = 'PNG Image|*.png'
-    Left = 16
-    Top = 496
+    Left = 224
+    Top = 56
   end
 end
