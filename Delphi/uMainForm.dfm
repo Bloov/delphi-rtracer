@@ -25,6 +25,9 @@ object MainForm: TMainForm
     Align = alLeft
     Alignment = taLeftJustify
     TabOrder = 0
+    DesignSize = (
+      265
+      548)
     object Label1: TLabel
       Left = 8
       Top = 72
@@ -70,6 +73,7 @@ object MainForm: TMainForm
       Top = 368
       Width = 251
       Height = 169
+      Anchors = [akLeft, akTop, akBottom]
       ItemHeight = 13
       TabOrder = 5
     end
@@ -78,6 +82,7 @@ object MainForm: TMainForm
       Top = 337
       Width = 75
       Height = 25
+      Anchors = [akLeft, akTop, akBottom]
       Caption = 'Clear'
       TabOrder = 4
       OnClick = btnClearTextClick

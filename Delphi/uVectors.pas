@@ -463,7 +463,7 @@ var
   bX, bY: TVec3F;
 begin
   // If the normal vector is already the world space upwards (or downwards) vector, don't do anything
-  if not NearValue(ANormal * Vec3F(0, 0, 1), 1, 1e-3) then
+  if not NearValue(Abs(ANormal * Vec3F(0, 0, 1)), 1, 1e-3) then
   begin
     // Build the orthonormal basis of the normal vector.
     bX := ANormal.Cross(Vec3F(0, 0, 1)).Normalize;

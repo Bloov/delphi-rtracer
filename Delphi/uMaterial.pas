@@ -55,6 +55,9 @@ implementation
 uses
   uMathUtils, uSamplingUtils;
 
+const
+  cPrecisionDelta = 2e-5;
+
 { TLambertian }
 constructor TLambertian.Create(const anAlbedo: TColorVec);
 begin
@@ -71,7 +74,7 @@ begin
   else}
     Normal := ANormal;
 
-  Scattered.Origin := AOrigin + Normal * 1e-5;
+  Scattered.Origin := AOrigin + Normal * cPrecisionDelta;
   Scattered.Direction := RandomOnUnitHemisphere.Rotate(Normal);
   Attenuation := Albedo;
   Result := True;
@@ -94,7 +97,7 @@ begin
   else}
     Normal := ANormal;
 
-  Scattered.Origin := AOrigin + Normal * 1e-5;
+  Scattered.Origin := AOrigin + Normal * cPrecisionDelta;
   if Roughness = 0 then
     Scattered.Direction := Reflect(AIncident, Normal).Normalize
   else
@@ -138,7 +141,7 @@ begin
     ReflectProb := 1;
 
   Attenuation := ColorVec(1.0, 1.0, 1.0);
-  Scattered.Origin := AOrigin - OutwardN * 1e-5;
+  Scattered.Origin := AOrigin - OutwardN * cPrecisionDelta;
   if RandomF < ReflectProb then
     Scattered.Direction := Reflect(AIncident, ANormal).Normalize
   else

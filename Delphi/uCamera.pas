@@ -48,7 +48,7 @@ type
 implementation
 
 uses
-  Math, uSamplingUtils;
+  Math, uMathUtils, uSamplingUtils;
 
 { TCamera }
 procedure TCamera.SetupView(AWidth, AHeight: Integer);
@@ -93,7 +93,10 @@ begin
   HalfWidth := Tan(Theta * 0.5);
   HalfHeight := HalfWidth / AspectRatio;
 
-  xAxis := CameraUp.Cross(Direction).Normalize;
+  if NearValue(Abs(CameraUp * Direction), 1, 1e-3) then
+    xAxis := Vec3F(1, 0, 0) * uMathUtils.Sign(CameraUp * Direction)
+  else
+    xAxis := CameraUp.Cross(Direction).Normalize;
   yAxis := Direction.Cross(xAxis).Normalize;
 
   FHorz := 2 * HalfWidth * xAxis;

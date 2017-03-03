@@ -176,15 +176,18 @@ const
 var
   Renderer: TRenderer;
   Image: TImage2D;
+  TargetWidth, TargetHeight: Integer;
   StartTime, EndTime, Freq: Int64;
 begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
     MakeRandomSpheresScene(Renderer);
+    TargetWidth := imgRender.ClientWidth div cDivRes;
+    TargetHeight := imgRender.ClientHeight div cDivRes;
 
     QueryPerformanceCounter(StartTime);
-      Image := Renderer.Render(imgRender.ClientWidth div cDivRes, imgRender.ClientHeight div cDivRes, cSPP);
+      Image := Renderer.Render(TargetWidth, TargetHeight, cSPP);
     QueryPerformanceCounter(EndTime);
     QueryPerformanceFrequency(Freq);
 
@@ -208,7 +211,7 @@ begin
     Png := TPngImage.Create;
     try
       Png.Assign(imgRender.Picture.Bitmap);
-      Png.SaveToFile(dlgSaveImage.FileName + '.png');
+      Png.SaveToFile(dlgSaveImage.FileName);
     finally
       Png.Free;
     end;
