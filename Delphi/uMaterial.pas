@@ -115,33 +115,37 @@ end;
 function TDielectric.Scatter(const AOrigin, AIncident, ANormal: TVec3F;
   out Scattered: TRay; out Attenuation: TColorVec): Boolean;
 var
-  OutwardN: TVec3F;
-  Cosine, RefractionIndex: Single;
+  CosIn: Single;
+  Normal: TVec3F;
+  RefractionIndex: Single;
   Reflected, Refracted: TVec3F;
   ReflectProb: Single;
 begin
-  if AIncident * ANormal > 0 then
+  CosIn := AIncident * ANormal;
+  if CosIn > 0 then
   begin
-    OutwardN := -ANormal;
+    Normal := -ANormal;
     RefractionIndex := Refraction;
-    Cosine := Refraction * AIncident * ANormal;
-    {Cosine := AIncident * ANormal;
-    Cosine := Sqrt(1 - Sqr(Refraction) * (1 - Sqr(Cosine)));}
   end
   else
   begin
-    OutwardN := ANormal;
+    Normal := ANormal;
     RefractionIndex := 1 / Refraction;
-    Cosine := -AIncident * ANormal;
   end;
 
-  if Refract(AIncident, OutwardN, RefractionIndex, Refracted) then
-    ReflectProb := Schlick(Cosine, Refraction)
+  if Refract(AIncident, Normal, RefractionIndex, Refracted) then
+  begin
+    if CosIn > 0 then
+      CosIn := Sqrt(1 - Sqr(RefractionIndex) * (1 - Sqr(CosIn)))
+    else
+      CosIn := -CosIn;
+    ReflectProb := Schlick(CosIn, Refraction)
+  end
   else
     ReflectProb := 1;
 
   Attenuation := ColorVec(1.0, 1.0, 1.0);
-  Scattered.Origin := AOrigin - OutwardN * cPrecisionDelta;
+  Scattered.Origin := AOrigin - Normal * cPrecisionDelta;
   if RandomF < ReflectProb then
     Scattered.Direction := Reflect(AIncident, ANormal).Normalize
   else

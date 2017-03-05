@@ -10,8 +10,9 @@ type
   public
     Origin: TVec3F;
     Direction: TVec3F;
+    Time: Single;
 
-    constructor Create(const AOrigin, ADirection: TVec3F);
+    constructor Create(const AOrigin, ADirection: TVec3F; ATime: Single = 0);
 
     function At(ADistance: Single): TVec3F; inline;
   end;
@@ -19,8 +20,9 @@ type
 implementation
 
 { TRay }
-constructor TRay.Create(const AOrigin, ADirection: TVec3F);
+constructor TRay.Create(const AOrigin, ADirection: TVec3F; ATime: Single = 0);
 begin
+  Time := ATime;
   Origin := AOrigin;
   if not ADirection.IsZero then
     Direction := ADirection.Normalize

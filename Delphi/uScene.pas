@@ -22,7 +22,7 @@ type
     function Add(AObject: THitable): Integer;
     procedure Delete(Index: Integer);
 
-    function Hit(const ARay: TRay; var Hit: TRayHit): Boolean;
+    function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 
     property Items[Index: Integer]: THitable read GetItem;
     property Count: Integer read FCount;
@@ -97,20 +97,19 @@ begin
   Dec(FCount);
 end;
 
-function TScene.Hit(const ARay: TRay; var Hit: TRayHit): Boolean;
+function TScene.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 var
   I: Integer;
   TmpHit: TRayHit;
-  Closest: Double;
+  ClosestSoFar: Double;
 begin
   Result := False;
+  ClosestSoFar := AMaxDist;
   for I := 0 to Count - 1 do
-    if FItems[I].Hit(ARay, TmpHit) then
+    if FItems[I].Hit(ARay, AMinDist, ClosestSoFar, TmpHit) then
     begin
-      if not Result or (TmpHit.Distance < Closest) then
-        Hit := TmpHit;
-
-      Closest := Hit.Distance;
+      Hit := TmpHit;
+      ClosestSoFar := Hit.Distance;
       Result := True;
     end;
 end;

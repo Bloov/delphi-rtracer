@@ -35,7 +35,7 @@ type
 implementation
 
 uses
-  SysUtils, uMathUtils, uHitable;
+  SysUtils, Math, uMathUtils, uHitable;
 
 { TRenderer }
 constructor TRenderer.Create(AScene: TScene);
@@ -108,7 +108,7 @@ begin
   end;
 
   Inc(FEmitedRays);
-  if Scene.Hit(ARay, Hit) then
+  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
       Result := Attenuation * GetColor(Scattered, ADepth + 1)
@@ -129,7 +129,8 @@ function TRenderer.GetNormalColor(const ARay: TRay): TColorVec;
 var
   Hit: TRayHit;
 begin
-  if Scene.Hit(ARay, Hit) then
+  Inc(FEmitedRays);
+  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
     Result := Vec2Color(Hit.Normal)
   else
     Result := ColorVec(0.0, 0.0, 0.0);
@@ -156,7 +157,8 @@ begin
     Exit;
   end;
 
-  if Scene.Hit(ARay, Hit) then
+  Inc(FEmitedRays);
+  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
       Result := GetDepthColor(Scattered, ADepth + 1)
@@ -185,7 +187,8 @@ begin
     Exit;
   end;
 
-  if Scene.Hit(ARay, Hit) then
+  Inc(FEmitedRays);
+  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
       if ADepth <> ATargetDepth then
@@ -205,13 +208,14 @@ var
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth >= 50 then
+  if ADepth > ATargetDepth then
   begin
     Result :=  ColorVec(0.0, 0.0, 0.0);
     Exit;
   end;
 
-  if Scene.Hit(ARay, Hit) then
+  Inc(FEmitedRays);
+  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
       if ADepth <> ATargetDepth then

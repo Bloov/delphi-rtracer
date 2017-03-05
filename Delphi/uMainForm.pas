@@ -21,6 +21,8 @@ type
     lbText: TListBox;
     btnClearText: TButton;
     btnBenchmarkScene: TButton;
+    Label2: TLabel;
+    lblRenderPerformance: TLabel;
     procedure btnRenderClick(Sender: TObject);
     procedure btnSaveImageClick(Sender: TObject);
     procedure btnBenchmarkCameraClick(Sender: TObject);
@@ -55,13 +57,16 @@ end;
 
 procedure TMainForm.MakeTestScene(ARenderer: TRenderer);
 begin
-  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(3, 3, 2), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 45, 0.5));
+  //ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(3, 3, 2), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 45, 0.05));
+  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(0, 0.5, 2), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 55, 0.0));
 
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
+  //ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TDielectric.Create(1.5)));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -100.5, -1), 100, TLambertian.Create(ColorVec(0.8, 0.8, 0.0))));
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(1, 0, -1), 0.5, TMetal.Create(ColorVec(0.8, 0.6, 0.2), 0.25)));
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TDielectric.Create(1.5)));
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), -0.45, TDielectric.Create(1.5)));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(1, 0, -1), 0.5, TMetal.Create(ColorVec(0.8, 0.6, 0.2), 0.2)));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
+  //ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TDielectric.Create(1.5)));
+  //ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), -0.45, TDielectric.Create(1.5)));
 end;
 
 procedure TMainForm.MakeRandomSpheresScene(ARenderer: TRenderer);
@@ -70,7 +75,8 @@ var
   MatProb: Single;
   Center: TVec3F;
 begin
-  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 30, 0.1, 10));
+  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 30, 0.0, 10));
+  ARenderer.Camera.SetupFrameTime(0, 1);
 
   ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -1000, 0), 1000, TLambertian.Create(ColorVec(0.5, 0.5, 0.5))));
   for A := -11 to 11 do
@@ -80,9 +86,9 @@ begin
       Center := Vec3F(A + 0.9 * RandomF, 0.2, B + 0.9 * RandomF);
       if (Center - Vec3F(4, 0.2, 0)).Length > 0.9 then
       begin
-        if MatProb < 0.8 then
+        if MatProb < 0.75 then
           ARenderer.Scene.Add(
-            TSphere.Create(Center, 0.2, TLambertian.Create(ColorVec(RandomF * RandomF, RandomF * RandomF, RandomF * RandomF))))
+            TMovingSphere.Create(Center, Center + Vec3F(0, 0.5 * RandomF, 0), 0.2, 0, 1, TLambertian.Create(ColorVec(RandomF * RandomF, RandomF * RandomF, RandomF * RandomF))))
         else if MatProb < 0.95 then
           ARenderer.Scene.Add(
             TSphere.Create(Center, 0.2, TMetal.Create(ColorVec(0.5 * (1 + RandomF), 0.5 * (1 + RandomF), 0.5 * (1 + RandomF)), 0.5 * RandomF)))
@@ -178,11 +184,13 @@ var
   Image: TImage2D;
   TargetWidth, TargetHeight: Integer;
   StartTime, EndTime, Freq: Int64;
+  TotalRays, TotalTime: Single;
 begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
-    MakeRandomSpheresScene(Renderer);
+    //MakeRandomSpheresScene(Renderer);
+    MakeTestScene(Renderer);
     TargetWidth := imgRender.ClientWidth div cDivRes;
     TargetHeight := imgRender.ClientHeight div cDivRes;
 
@@ -191,7 +199,10 @@ begin
     QueryPerformanceCounter(EndTime);
     QueryPerformanceFrequency(Freq);
 
-    lblRenderTime.Caption := Format('%.3f', [1000 * (EndTime - StartTime) / Freq]);
+    TotalTime := (EndTime - StartTime) / Freq;
+    TotalRays := Renderer.EmitedRays;
+    lblRenderTime.Caption := Format('%.3f', [TotalTime * 1e3]);
+    lblRenderPerformance.Caption := Format('%.3f', [TotalRays / (TotalTime * 1e6)]);
     imgRender.Picture.Bitmap := Image.GetAsBitmap;
   finally
     FreeAndNil(Image);

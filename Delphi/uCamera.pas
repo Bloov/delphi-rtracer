@@ -10,8 +10,10 @@ type
   private
     FWidth, FHeight: Integer;
     FAspectRatio: Single;
+    FTime0, FTime1: Single;
   public
     procedure SetupView(AWidth, AHeight: Integer); virtual;
+    procedure SetupFrameTime(ATime0, ATime1: Single); virtual;
 
     function GetRay(U, V: Single): TRay; virtual; abstract;
 
@@ -59,6 +61,12 @@ begin
   FWidth := AWidth;
   FHeight := AHeight;
   FAspectRatio := FWidth / FHeight;
+end;
+
+procedure TCamera.SetupFrameTime(ATime0, ATime1: Single);
+begin
+  FTime0 := ATime0;
+  FTime1 := ATime1;
 end;
 
 { TPerspectiveCamera }
@@ -110,6 +118,7 @@ var
   ScreenPoint: TVec3F;
   FocusPoint: TVec3F;
   PointOnAperture: TVec2F;
+  Time: Single;
 begin
   RayOrigin := FCenter;
   // In screen plane image is inverted
@@ -122,7 +131,8 @@ begin
     RayOrigin := RayOrigin + PointOnAperture.X * FHorz + PointOnAperture.Y * FVert;
     RayDirection := (FocusPoint - RayOrigin).Normalize;
   end;
-  Result := TRay.Create(RayOrigin, RayDirection);
+  Time := FTime0 + RandomF * (FTime1 - FTime0);
+  Result := TRay.Create(RayOrigin, RayDirection, Time);
 end;
 
 end.
