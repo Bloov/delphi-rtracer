@@ -3,7 +3,7 @@ unit uHitable;
 interface
 
 uses
-  uVectors, uRay, uMaterial;
+  uVectors, uAABB, uRay, uMaterial;
 
 type
   TRayHit = packed record
@@ -24,6 +24,7 @@ type
     destructor Destroy; override;
 
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean; virtual; abstract;
+    function BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean; virtual; abstract;
 
     property Material: TMaterial read Fmaterial;
   end;
@@ -37,6 +38,7 @@ type
     constructor Create(const ACenter: TVec3F; ARadius: Single; AMaterial: TMaterial);
 
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean; override;
+    function BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean; override;
 
     property Center: TVec3F read FCenter;
     property Radius: Single read FRadius;
@@ -53,6 +55,7 @@ type
 
     function CenterAt(ATime: Single): TVec3F;
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean; override;
+    function BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean; override;
 
     property Center0: TVec3F read FCenter0;
     property Center1: TVec3F read FCenter1;
@@ -90,8 +93,8 @@ constructor TSphere.Create(const ACenter: TVec3F; ARadius: Single; AMaterial: TM
 begin
   inherited Create(AMaterial);
   FCenter := ACenter;
-  FRadius := ARadius;
-  FNormalSign := Sign(FRadius);
+  FRadius := Abs(ARadius);
+  FNormalSign := Sign(ARadius);
 end;
 
 function TSphere.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
@@ -124,6 +127,15 @@ begin
   end
   else
     Result := False;
+end;
+
+function TSphere.BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean;
+var
+  R: TVec3F;
+begin
+  R := Vec3F(Radius, Radius, Radius);
+  BBox := TAABB.Create(Center - R, Center + R);
+  Result := True;
 end;
 
 { TMovingSphere }
@@ -176,6 +188,19 @@ begin
   end
   else
     Result := False;
+end;
+
+function TMovingSphere.BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean;
+var
+  R: TVec3F;
+  CenterAt0, CenterAt1: TVec3F;
+begin
+  R := Vec3F(Radius, Radius, Radius);
+  CenterAt0 := CenterAt(ATime0);
+  CenterAt1 := CenterAt(ATime1);
+  BBox := TAABB.Create(CenterAt0 - R, CenterAt0 + R);
+  BBox.ExpandWith(TAABB.Create(CenterAt1 - R, CenterAt1 + R));
+  Result := True;
 end;
 
 end.

@@ -142,6 +142,7 @@
         <DCCReference Include="uSamplingUtils.pas"/>
         <DCCReference Include="uMaterial.pas"/>
         <DCCReference Include="uAABB.pas"/>
+        <DCCReference Include="uBVH.pas"/>
         <None Include="uMathUtils.inc"/>
         <None Include="uDynArrays.inc"/>
         <BuildConfiguration Include="Release">

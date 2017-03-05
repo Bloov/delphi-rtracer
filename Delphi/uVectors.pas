@@ -78,6 +78,9 @@ type
     function Length(): Single; inline;
     function LengthSqr(): Single; inline;
 
+    function Min(const Vec: TVec3F): TVec3F;
+    function Max(const Vec: TVec3F): TVec3F;
+
     function IsZero(): Boolean; inline;
     function IsAnyZero(): Boolean; inline;
     function IsValid(): Boolean;
@@ -483,6 +486,20 @@ end;
 function TVec3F.LengthSqr(): Single;
 begin
   Result := X * X + Y * Y + Z * Z;
+end;
+
+function TVec3F.Min(const Vec: TVec3F): TVec3F;
+begin
+  Result.X := uMathUtils.Min(X, Vec.X);
+  Result.Y := uMathUtils.Min(Y, Vec.Y);
+  Result.Z := uMathUtils.Min(Z, Vec.Z);
+end;
+
+function TVec3F.Max(const Vec: TVec3F): TVec3F;
+begin
+  Result.X := uMathUtils.Max(X, Vec.X);
+  Result.Y := uMathUtils.Max(Y, Vec.Y);
+  Result.Z := uMathUtils.Max(Z, Vec.Z);
 end;
 
 function TVec3F.IsZero(): Boolean;

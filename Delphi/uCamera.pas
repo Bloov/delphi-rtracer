@@ -20,6 +20,8 @@ type
     property Width: Integer read FWidth;
     property Height: Integer read FHeight;
     property AspectRatio: Single read FAspectRatio;
+    property Time0: Single read FTime0;
+    property Time1: Single read FTime1;
   end;
 
   TPerspectiveCamera = class(TCamera)

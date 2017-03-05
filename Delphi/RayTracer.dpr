@@ -15,7 +15,8 @@ uses
   uCamera in 'uCamera.pas',
   uSamplingUtils in 'uSamplingUtils.pas',
   uMaterial in 'uMaterial.pas',
-  uAABB in 'uAABB.pas';
+  uAABB in 'uAABB.pas',
+  uBVH in 'uBVH.pas';
 
 {$R *.res}
 

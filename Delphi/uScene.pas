@@ -3,13 +3,14 @@ unit uScene;
 interface
 
 uses
-  uRay, uHitable;
+  uRay, uHitable, uBVH;
 
 type
   TScene = class
   private
     FCount, FCapacity: Integer;
     FItems: array of THitable;
+    FBVH: TBVHNode;
 
     function GetItem(Index: Integer): THitable;
     function ValidIndex(Index: Integer): Boolean;
@@ -21,6 +22,8 @@ type
 
     function Add(AObject: THitable): Integer;
     procedure Delete(Index: Integer);
+
+    procedure BuildBVH(ATime0, ATime1: Single);
 
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 
@@ -97,21 +100,32 @@ begin
   Dec(FCount);
 end;
 
+procedure TScene.BuildBVH(ATime0, ATime1: Single);
+begin
+  FreeAndNil(FBVH);
+  FBVH := TBVHNode.Create(FItems, 0, FCount - 1, ATime0, ATime1);
+end;
+
 function TScene.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 var
   I: Integer;
   TmpHit: TRayHit;
-  ClosestSoFar: Double;
+  {ClosestSoFar: Double;}
 begin
   Result := False;
-  ClosestSoFar := AMaxDist;
+  if (FBVH <> nil) and FBVH.Hit(ARay, AMinDist, AMaxDist, TmpHit) then
+  begin
+    Hit := TmpHit;
+    Result := True;
+  end;
+  {ClosestSoFar := AMaxDist;
   for I := 0 to Count - 1 do
     if FItems[I].Hit(ARay, AMinDist, ClosestSoFar, TmpHit) then
     begin
       Hit := TmpHit;
       ClosestSoFar := Hit.Distance;
       Result := True;
-    end;
+    end;}
 end;
 
 end.
