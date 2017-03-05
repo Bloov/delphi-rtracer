@@ -111,7 +111,10 @@ begin
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
-      Result := Attenuation * GetColor(Scattered, ADepth + 1)
+    begin
+      Scattered.Time := ARay.Time;
+      Result := Attenuation * GetColor(Scattered, ADepth + 1);
+    end
     else
       Result :=  ColorVec(0.0, 0.0, 0.0);
   end
@@ -161,7 +164,10 @@ begin
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
-      Result := GetDepthColor(Scattered, ADepth + 1)
+    begin
+      Scattered.Time := ARay.Time;
+      Result := GetDepthColor(Scattered, ADepth + 1);
+    end
     else
       Result := Depth2Color(ADepth);
   end
@@ -192,7 +198,10 @@ begin
   begin
     if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
       if ADepth <> ATargetDepth then
-        Result := GetScatteredAtDepth(Scattered, ADepth + 1, ATargetDepth)
+      begin
+        Scattered.Time := ARay.Time;
+        Result := GetScatteredAtDepth(Scattered, ADepth + 1, ATargetDepth);
+      end
       else
         Result := Vec2Color(Scattered.Direction)
     else
@@ -219,7 +228,10 @@ begin
   begin
     if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
       if ADepth <> ATargetDepth then
-        Result := Attenuation * GetColorAtDepth(Scattered, ADepth + 1, ATargetDepth)
+      begin
+        Scattered.Time := ARay.Time;
+        Result := Attenuation * GetColorAtDepth(Scattered, ADepth + 1, ATargetDepth);
+      end
       else
         Result := Attenuation
     else
