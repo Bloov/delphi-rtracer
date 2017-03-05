@@ -33,9 +33,9 @@ object MainForm: TMainForm
     object Label1: TLabel
       Left = 8
       Top = 72
-      Width = 88
+      Width = 91
       Height = 13
-      Caption = 'Render Time (ms):'
+      Caption = 'Render Time (sec):'
     end
     object lblRenderTime: TLabel
       Left = 102

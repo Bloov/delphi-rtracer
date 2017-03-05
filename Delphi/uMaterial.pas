@@ -53,7 +53,7 @@ type
 implementation
 
 uses
-  uMathUtils, uSamplingUtils;
+  Math, uMathUtils, uSamplingUtils;
 
 const
   cPrecisionDelta = 2e-5;
@@ -115,42 +115,55 @@ end;
 function TDielectric.Scatter(const AOrigin, AIncident, ANormal: TVec3F;
   out Scattered: TRay; out Attenuation: TColorVec): Boolean;
 var
-  CosIn: Single;
+  CosIn, CosOut: Single;
   Normal: TVec3F;
-  RefractionIndex: Single;
-  Reflected, Refracted: TVec3F;
-  ReflectProb: Single;
+  N1, N2: Single;
+  R{, R0}: Single;
 begin
+  Attenuation := ColorVec(1.0, 1.0, 1.0);
+
   CosIn := AIncident * ANormal;
   if CosIn > 0 then
   begin
+    // The ray is inside the material
     Normal := -ANormal;
-    RefractionIndex := Refraction;
+    N1 := Refraction;
+    N2 := 1;
   end
   else
   begin
+    // The ray is outside the material
     Normal := ANormal;
-    RefractionIndex := 1 / Refraction;
+    CosIn := -CosIn;
+    N1 := 1;
+    N2 := Refraction;
   end;
 
-  if Refract(AIncident, Normal, RefractionIndex, Refracted) then
+  CosOut := 1 - Sqr(N1 / N2) * (1 - Sqr(CosIn));
+  if CosOut < 0 then
   begin
-    if CosIn > 0 then
-      CosIn := Sqrt(1 - Sqr(RefractionIndex) * (1 - Sqr(CosIn)))
-    else
-      CosIn := -CosIn;
-    ReflectProb := Schlick(CosIn, Refraction)
+    // Total internal reflection case
+    Scattered.Origin := AOrigin + Normal * cPrecisionDelta;
+    Scattered.Direction := Reflect(AIncident, Normal).Normalize;
+    Exit(True);
+  end;
+
+  CosOut := Sqrt(CosOut);
+  // Calculate the Fresnel coefficient for a randomly polarized ray
+  R := 0.5 * (Sqr((N1 * cosIn - N2 * cosOut) / (N1 * cosIn + N2 * cosOut)) + Sqr((N2 * cosIn - N1 * cosOut) / (N1 * cosOut + N2 * cosIn)));
+  // Calculate Schlick approximation coefficient
+  {R0 := Sqr((N1 - N2) / (N1 + N2));
+  R := R0 + (1 - R0) * Power(1 - uMathUtils.Min(CosIn, CosOut), 5);}
+  if RandomF < R then
+  begin
+    Scattered.Origin := AOrigin + Normal * cPrecisionDelta;
+    Scattered.Direction := Reflect(AIncident, Normal).Normalize;
   end
   else
-    ReflectProb := 1;
-
-  Attenuation := ColorVec(1.0, 1.0, 1.0);
-  Scattered.Origin := AOrigin - Normal * cPrecisionDelta;
-  if RandomF < ReflectProb then
-    Scattered.Direction := Reflect(AIncident, ANormal).Normalize
-  else
-    Scattered.Direction := Refracted.Normalize;
-
+  begin
+    Scattered.Origin := AOrigin - Normal * cPrecisionDelta;
+    Scattered.Direction := AIncident * (N1 / N2) + Normal * ((N1 / N2) * CosIn - CosOut);
+  end;
   Result := True;
 end;
 

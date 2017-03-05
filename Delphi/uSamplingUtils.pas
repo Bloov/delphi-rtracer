@@ -15,10 +15,6 @@ function RandomOnUnitHemisphere(): TVec3F;
 function RandomMicrofacetNormal(Roughness: Single): TVec3F;
 
 function Reflect(const AVec, ANormal: TVec3F): TVec3F;
-function Refract(const AVec, ANormal: TVec3F; ARefraction: Single; var Refracted: TVec3F): Boolean;
-
-// Schlick's approximation for the Fresnel factor
-function Schlick(Cosine, Refraction: Single): Single;
 
 implementation
 
@@ -87,30 +83,7 @@ end;
 
 function Reflect(const AVec, ANormal: TVec3F): TVec3F;
 begin
-  Result := AVec - 2 * (AVec * ANormal) * ANormal;
-end;
-
-function Refract(const AVec, ANormal: TVec3F; ARefraction: Single; var Refracted: TVec3F): Boolean;
-var
-  Dt, D: Single;
-begin
-  Dt := AVec * ANormal;
-  D := 1 - ARefraction * ARefraction * (1 - Dt * Dt);
-  if D > 0 then
-  begin
-    Refracted := ARefraction * (AVec - ANormal * Dt) - ANormal * Sqrt(D);
-    Result := True;
-  end
-  else
-    Result := False;
-end;
-
-function Schlick(Cosine, Refraction: Single): Single;
-var
-  f: Single;
-begin
-  f := Sqr((1 - Refraction) / (1 + Refraction));
-  Result := f + (1 - f) * Power((1 - Cosine), 5);
+  Result := AVec - ANormal * (2 * (AVec * ANormal));
 end;
 
 end.

@@ -57,16 +57,16 @@ end;
 
 procedure TMainForm.MakeTestScene(ARenderer: TRenderer);
 begin
-  //ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(3, 3, 2), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 45, 0.05));
-  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(0, 0.5, 2), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 55, 0.0));
+  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(3, 3, 2), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 45, 0.0));
+  //ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(2, 0, 1), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 55, 0.0));
 
-  //ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TDielectric.Create(1.5)));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
+  //ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TDielectric.Create(1.5)));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -100.5, -1), 100, TLambertian.Create(ColorVec(0.8, 0.8, 0.0))));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(1, 0, -1), 0.5, TMetal.Create(ColorVec(0.8, 0.6, 0.2), 0.2)));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
-  //ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TDielectric.Create(1.5)));
-  //ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), -0.45, TDielectric.Create(1.5)));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TDielectric.Create(1.5)));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), -0.45, TDielectric.Create(1.5)));
 end;
 
 procedure TMainForm.MakeRandomSpheresScene(ARenderer: TRenderer);
@@ -177,7 +177,7 @@ end;
 
 procedure TMainForm.btnRenderClick(Sender: TObject);
 const
-  cSPP = 10;
+  cSPP = 1500;
   cDivRes = 1;
 var
   Renderer: TRenderer;
@@ -191,8 +191,8 @@ begin
   try
     //MakeRandomSpheresScene(Renderer);
     MakeTestScene(Renderer);
-    TargetWidth := imgRender.ClientWidth div cDivRes;
-    TargetHeight := imgRender.ClientHeight div cDivRes;
+    TargetWidth := 1920;//imgRender.ClientWidth div cDivRes;
+    TargetHeight := 1080;//imgRender.ClientHeight div cDivRes;
 
     QueryPerformanceCounter(StartTime);
       Image := Renderer.Render(TargetWidth, TargetHeight, cSPP);
@@ -201,7 +201,7 @@ begin
 
     TotalTime := (EndTime - StartTime) / Freq;
     TotalRays := Renderer.EmitedRays;
-    lblRenderTime.Caption := Format('%.3f', [TotalTime * 1e3]);
+    lblRenderTime.Caption := Format('%.3f', [TotalTime]);
     lblRenderPerformance.Caption := Format('%.3f', [TotalRays / (TotalTime * 1e6)]);
     imgRender.Picture.Bitmap := Image.GetAsBitmap;
   finally
