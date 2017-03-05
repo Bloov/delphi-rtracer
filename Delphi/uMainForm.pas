@@ -177,7 +177,7 @@ end;
 
 procedure TMainForm.btnRenderClick(Sender: TObject);
 const
-  cSPP = 1500;
+  cSPP = 10;
   cDivRes = 1;
 var
   Renderer: TRenderer;
@@ -191,8 +191,8 @@ begin
   try
     //MakeRandomSpheresScene(Renderer);
     MakeTestScene(Renderer);
-    TargetWidth := 1920;//imgRender.ClientWidth div cDivRes;
-    TargetHeight := 1080;//imgRender.ClientHeight div cDivRes;
+    TargetWidth := imgRender.ClientWidth div cDivRes;
+    TargetHeight := imgRender.ClientHeight div cDivRes;
 
     QueryPerformanceCounter(StartTime);
       Image := Renderer.Render(TargetWidth, TargetHeight, cSPP);
