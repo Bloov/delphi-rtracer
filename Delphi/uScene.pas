@@ -10,7 +10,7 @@ type
   private
     FCount, FCapacity: Integer;
     FItems: array of THitable;
-    FBVH: TBVHNode;
+    FBVH: THitable;
 
     function GetItem(Index: Integer): THitable;
     function ValidIndex(Index: Integer): Boolean;
@@ -102,7 +102,8 @@ end;
 
 procedure TScene.BuildBVH(ATime0, ATime1: Single);
 begin
-  FreeAndNil(FBVH);
+  if FBVH is TBVHNode then
+    FreeAndNil(FBVH);
   FBVH := TBVHNode.Create(FItems, 0, FCount - 1, ATime0, ATime1);
 end;
 
@@ -110,22 +111,28 @@ function TScene.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayH
 var
   I: Integer;
   TmpHit: TRayHit;
-  {ClosestSoFar: Double;}
+  ClosestSoFar: Double;
 begin
   Result := False;
-  if (FBVH <> nil) and FBVH.Hit(ARay, AMinDist, AMaxDist, TmpHit) then
+  if FBVH <> nil then
   begin
-    Hit := TmpHit;
-    Result := True;
-  end;
-  {ClosestSoFar := AMaxDist;
-  for I := 0 to Count - 1 do
-    if FItems[I].Hit(ARay, AMinDist, ClosestSoFar, TmpHit) then
+    if FBVH.Hit(ARay, AMinDist, AMaxDist, TmpHit) then
     begin
       Hit := TmpHit;
-      ClosestSoFar := Hit.Distance;
       Result := True;
-    end;}
+    end;
+  end
+  else
+  begin
+    ClosestSoFar := AMaxDist;
+    for I := 0 to Count - 1 do
+      if FItems[I].Hit(ARay, AMinDist, ClosestSoFar, TmpHit) then
+      begin
+        Hit := TmpHit;
+        ClosestSoFar := Hit.Distance;
+        Result := True;
+      end;
+  end;
 end;
 
 end.

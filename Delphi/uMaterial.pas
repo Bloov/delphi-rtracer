@@ -56,7 +56,7 @@ uses
   Math, uMathUtils, uSamplingUtils;
 
 const
-  cPrecisionDelta = 2e-5;
+  cPrecisionDelta = 1e-4;
 
 { TLambertian }
 constructor TLambertian.Create(const anAlbedo: TColorVec);

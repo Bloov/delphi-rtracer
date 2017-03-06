@@ -49,28 +49,28 @@ function TAABB.Hit(const ARay: TRay; AMinDist, AMaxDist: Single): Boolean;
 var
   I: Integer;
   invD: Single;
-  L, H: Single;
-  Near, Far: Single;
+  cMin, cMax: Single;
+  tMin, tMax: Single;
 begin
-  Near := AMinDist;
-  Far := AMaxDist;
+  tMin := AMinDist;
+  tMax := AMaxDist;
   for I := 0 to 2 do
   begin
     if ARay.Direction.Arr[I] = 0 then
       Continue;
 
     invD := 1 / ARay.Direction.Arr[I];
-    L := invD * (Min.Arr[I] - ARay.Origin.Arr[I]);
-    H := invD * (Max.Arr[I] - ARay.Origin.Arr[I]);
+    cMin := invD * (Min.Arr[I] - ARay.Origin.Arr[I]);
+    cMax := invD * (Max.Arr[I] - ARay.Origin.Arr[I]);
     if invD < 0 then
-      Swap(L, H);
+      Swap(cMin, cMax);
 
-    Near := uMathUtils.Max(L, Near);
-    Far := uMathUtils.Min(H, Far);
-    if Far <= Near then
+    tMin := uMathUtils.Max(cMin, tMin);
+    tMax := uMathUtils.Min(cMax, tMax);
+    if tMax <= tMin then
       Exit(False);
   end;
-  Result := True;
+  Result := (tMax > 0);
 end;
 
 end.

@@ -88,10 +88,10 @@ begin
       Center := Vec3F(A + 0.9 * RandomF, 0.2, B + 0.9 * RandomF);
       if (Center - Vec3F(4, 0.2, 0)).Length > 0.9 then
       begin
-        if MatProb < 0.75 then
+        if MatProb < 0.72 then
           ARenderer.Scene.Add(
             TMovingSphere.Create(Center, Center + Vec3F(0, 0.5 * RandomF, 0), 0.2, 0, 1, TLambertian.Create(ColorVec(RandomF * RandomF, RandomF * RandomF, RandomF * RandomF))))
-        else if MatProb < 0.95 then
+        else if MatProb < 0.92 then
           ARenderer.Scene.Add(
             TSphere.Create(Center, 0.2, TMetal.Create(ColorVec(0.5 * (1 + RandomF), 0.5 * (1 + RandomF), 0.5 * (1 + RandomF)), 0.5 * RandomF)))
         else
@@ -154,10 +154,11 @@ begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
+    RandSeed := 123456;
     MakeRandomSpheresScene(Renderer);
 
     QueryPerformanceCounter(StartTime);
-      Image := Renderer.Render(512, 512, cSPP);
+      Image := Renderer.Render(256, 256, cSPP);
     QueryPerformanceCounter(EndTime);
     QueryPerformanceFrequency(Freq);
 
@@ -193,8 +194,9 @@ begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
-    //MakeRandomSpheresScene(Renderer);
-    MakeTestScene(Renderer);
+    MakeRandomSpheresScene(Renderer);
+    //MakeTestScene(Renderer);
+
     TargetWidth := imgRender.ClientWidth div cDivRes;
     TargetHeight := imgRender.ClientHeight div cDivRes;
 
