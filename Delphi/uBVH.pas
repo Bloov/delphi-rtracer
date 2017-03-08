@@ -9,7 +9,9 @@ type
   TBVHNode = class(THitable)
   private
     FBBox: TAABB;
-    FLeft, FRight: THitable;
+    //FLeft, FRight: THitable;
+    FLeft, FRight: TBVHNode;
+    FLeaf: THitable;
   public
     constructor Create(var AList: array of THitable; AFrom, ATo: Integer; ATime0, ATime1: Single);
     destructor Destroy; override;
@@ -17,8 +19,11 @@ type
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean; override;
     function BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean; override;
 
-    property Left: THitable read FLeft;
-    property Right: THitable read FRight;
+    {property Left: THitable read FLeft;
+    property Right: THitable read FRight;}
+    property Left: TBVHNode read FLeft;
+    property Right: TBVHNode read FRight;
+    property Leaf: THitable read FLeaf;
   end;
 
 implementation
@@ -112,7 +117,7 @@ constructor TBVHNode.Create(var AList: array of THitable; AFrom, ATo: Integer; A
       Result := Sign(BoxLeft.Min_.Z - BoxRight.Min_.Z);
   end;
 
-var
+{var
   Axis: Integer;
   Count: Integer;
   BoxLeft, BoxRight: TAABB;
@@ -143,7 +148,47 @@ begin
     raise Exception.Create('BVH fail');
 
   FBBox := BoxLeft;
-  FBBox.ExpandWith(BoxRight);
+  FBBox.ExpandWith(BoxRight);}
+
+var
+  Axis: Integer;
+  Count: Integer;
+  BoxL, BoxR: TAABB;
+begin
+  Count := ATo - AFrom + 1;
+  if Count = 1 then
+  begin
+    FLeaf := AList[AFrom];
+  end
+  else if Count = 2 then
+  begin
+    FLeft := TBVHNode.Create(AList, AFrom, AFrom, ATime0, ATime1);
+    FRight := TBVHNode.Create(AList, ATo, ATo, ATime0, ATime1);
+  end
+  else
+  begin
+    Axis := Random(3);
+    if Axis = 0 then
+      HeapSort(AList, AFrom, ATo, ATime0, ATime1, @CompareX)
+    else if Axis = 1 then
+      HeapSort(AList, AFrom, ATo, ATime0, ATime1, @CompareY)
+    else
+      HeapSort(AList, AFrom, ATo, ATime0, ATime1, @CompareZ);
+
+    FLeft := TBVHNode.Create(AList, AFrom, AFrom + Count div 2 - 1, ATime0, ATime1);
+    FRight := TBVHNode.Create(AList, AFrom + Count div 2, ATo, ATime0, ATime1);
+  end;
+
+  if ((Left <> nil) and Left.BoundingBox(ATime0, ATime1, BoxL) and Right.BoundingBox(ATime0, ATime1, BoxR))
+    or ((Leaf <> nil) and Leaf.BoundingBox(ATime0, ATime1, BoxL))
+  then
+  begin
+    FBBox := BoxL;
+    if Right <> nil then
+      FBBox.ExpandWith(BoxR);
+  end
+  else
+    raise Exception.Create('BVH fail');
 end;
 
 destructor TBVHNode.Destroy;
@@ -155,7 +200,7 @@ begin
   inherited;
 end;
 
-function TBVHNode.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
+{function TBVHNode.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 var
   IsHitLeft, IsHitRight: Boolean;
   LeftHit, RightHit: TRayHit;
@@ -180,6 +225,65 @@ begin
   end
   else
     Result := False;
+end;}
+
+function TBVHNode.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
+
+  procedure Swap(var A, B: TBVHNode); inline;
+  var
+    Tmp: TBVHNode;
+  begin
+    Tmp := A;
+    A := B;
+    B := Tmp;
+  end;
+
+var
+  NMin, NMax, FMin, FMax: Single;
+  IsHitNear, IsHitFar: Boolean;
+  NearNode, FarNode: TBVHNode;
+  NearHit, FarHit: TRayHit;
+begin
+  if Leaf <> nil then
+    Result := Leaf.Hit(ARay, AMinDist, AMaxDist, Hit)
+  else
+  begin
+    NMin := AMinDist;
+    FMin := AMinDist;
+    NMax := AMaxDist;
+    FMax := AMaxDist;
+    NearNode := Left;
+    FarNode := Right;
+
+    IsHitNear := NearNode.FBBox.Hit(ARay, NMin, NMax);
+    IsHitFar := FarNode.FBBox.Hit(ARay, FMin, FMax);
+    if (IsHitNear and IsHitFar) and (FMin < NMin) then
+    begin
+      uMathUtils.Swap(NMin, FMin);
+      Swap(NearNode, FarNode);
+    end;
+
+    IsHitNear := IsHitNear and NearNode.Hit(ARay, AMinDist, AMaxDist, NearHit);
+    if IsHitNear then
+      AMaxDist := NearHit.Distance;
+
+    IsHitFar := IsHitFar and (AMaxDist > FMin);
+    IsHitFar := IsHitFar and FarNode.Hit(ARay, AMinDist, AMaxDist, FarHit);
+
+    if IsHitNear and IsHitFar then
+    begin
+      if NearHit.Distance < FarHit.Distance then
+        Hit := NearHit
+      else
+        Hit := FarHit;
+    end
+    else if IsHitNear then
+      Hit := NearHit
+    else if IsHitFar then
+      Hit := FarHit;
+
+    Result := IsHitNear or IsHitFar;
+  end;
 end;
 
 function TBVHNode.BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean;

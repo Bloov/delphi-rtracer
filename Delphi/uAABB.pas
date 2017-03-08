@@ -16,6 +16,7 @@ type
     procedure ExpandWith(const Other: TAABB); overload;
 
     function Hit(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
+    function HitUnsafe(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
 
     property Min_: TVec3F read FMin;
     property Max_: TVec3F read FMax;
@@ -47,6 +48,32 @@ end;
 
 function TAABB.Hit(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
 var
+  I: Integer;
+  invD: Single;
+  cMin, cMax: Single;
+begin
+  for I := 0 to 2 do
+    if ARay.Direction.Arr[I] <> 0 then
+    begin
+      invD := 1.0 / ARay.Direction.Arr[I];
+      cMin := invD * (FMin.Arr[I] - ARay.Origin.Arr[I]);
+      cMax := invD * (FMax.Arr[I] - ARay.Origin.Arr[I]);
+      if invD < 0 then
+        Swap(cMin, cMax);
+
+      MinDist := Max(MinDist, cMin);
+      MaxDist := Min(MaxDist, cMax);
+      if MaxDist <= MinDist then
+        Exit(False);
+    end
+    else if (ARay.Origin.Arr[I] <= FMin.Arr[I]) or (ARay.Origin.Arr[I] >= FMax.Arr[I]) then
+      Exit(False);
+
+  Result := (MaxDist > 0);
+end;
+
+function TAABB.HitUnsafe(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
+var
   cMin, cMax: Single;
 begin
   // X
@@ -72,33 +99,5 @@ begin
 
   Result := (MaxDist > MinDist) and (MaxDist > 0);
 end;
-
-{function TAABB.Hit(const ARay: TRay; AMinDist, AMaxDist: Single): Boolean;
-var
-  I: Integer;
-  invD: Single;
-  cMin, cMax: Single;
-  tMin, tMax: Single;
-begin
-  tMin := AMinDist;
-  tMax := AMaxDist;
-  for I := 0 to 2 do
-  begin
-    if ARay.Direction.Arr[I] = 0 then
-      Continue;
-
-    invD := 1 / ARay.Direction.Arr[I];
-    cMin := invD * (Min.Arr[I] - ARay.Origin.Arr[I]);
-    cMax := invD * (Max.Arr[I] - ARay.Origin.Arr[I]);
-    if invD < 0 then
-      Swap(cMin, cMax);
-
-    tMin := uMathUtils.Max(cMin, tMin);
-    tMax := uMathUtils.Min(cMax, tMax);
-    if tMax <= tMin then
-      Exit(False);
-  end;
-  Result := (tMax > 0);
-end;}
 
 end.
