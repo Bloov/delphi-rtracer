@@ -2,16 +2,6 @@ unit uMathUtils;
 
 interface
 
-function Min(A, B: Double): Double; overload; inline;
-function Min(A, B: Single): Single; overload; inline;
-function Min(A, B: Integer): Integer; overload; inline;
-function Min(A, B: Cardinal): Cardinal; overload; inline;
-
-function Max(A, B: Double): Double; overload; inline;
-function Max(A, B: Single): Single; overload; inline;
-function Max(A, B: Integer): Integer; overload; inline;
-function Max(A, B: Cardinal): Cardinal; overload; inline;
-
 procedure Swap(var A, B: Double); overload; inline;
 procedure Swap(var A, B: Single); overload; inline;
 procedure Swap(var A, B: Integer); overload; inline;
@@ -38,19 +28,8 @@ function RandomF(): Single; //inline;
 
 implementation
 
-{$DEFINE Min}
-function Min(A, B: Double): Double; {$I uMathUtils.inc}
-function Min(A, B: Single): Single; {$I uMathUtils.inc}
-function Min(A, B: Integer): Integer; {$I uMathUtils.inc}
-function Min(A, B: Cardinal): Cardinal; {$I uMathUtils.inc}
-{$UNDEF Min}
-
-{$DEFINE Max}
-function Max(A, B: Double): Double; {$I uMathUtils.inc}
-function Max(A, B: Single): Single; {$I uMathUtils.inc}
-function Max(A, B: Integer): Integer; {$I uMathUtils.inc}
-function Max(A, B: Cardinal): Cardinal; {$I uMathUtils.inc}
-{$UNDEF Max}
+uses
+  Math;
 
 {$DEFINE Swap}
 procedure Swap(var A, B: Double);

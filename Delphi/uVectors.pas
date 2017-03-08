@@ -2,9 +2,6 @@ unit uVectors;
 
 interface
 
-uses
-  Math;
-
 type
   TVec2F = packed record
   public
@@ -64,11 +61,13 @@ type
     // componentwise operations
     function CMul(const Vec: TVec3F): TVec3F; inline;
     function CDiv(const Vec: TVec3F): TVec3F; inline;
+    function CMin(const Vec: TVec3F): TVec3F;
+    function CMax(const Vec: TVec3F): TVec3F;
 
     function Dot(const Vec: TVec3F): Single; inline;
     function Cross(const Vec: TVec3F): TVec3F; inline;
     function Projection(const Vec: TVec3F): TVec3F; inline;
-    function Normalize(): TVec3F; inline; inline;
+    function Normalize(): TVec3F; inline;
     function Distance(const Vec: TVec3F): Single; inline;
     function Clip(ALength: Single): TVec3F;
     function Stretch(ALength: Single): TVec3F;
@@ -77,9 +76,6 @@ type
 
     function Length(): Single; inline;
     function LengthSqr(): Single; inline;
-
-    function Min(const Vec: TVec3F): TVec3F;
-    function Max(const Vec: TVec3F): TVec3F;
 
     function IsZero(): Boolean; inline;
     function IsAnyZero(): Boolean; inline;
@@ -97,7 +93,7 @@ function Vec3F(X, Y, Z: Single): TVec3F; inline;
 implementation
 
 uses
-  uMathUtils;
+  Math, uMathUtils;
 
 function Vec2F(X, Y: Single): TVec2F;
 begin
@@ -385,6 +381,20 @@ begin
   Result.Z := Z / Vec.Z;
 end;
 
+function TVec3F.CMin(const Vec: TVec3F): TVec3F;
+begin
+  Result.X := Min(X, Vec.X);
+  Result.Y := Min(Y, Vec.Y);
+  Result.Z := Min(Z, Vec.Z);
+end;
+
+function TVec3F.CMax(const Vec: TVec3F): TVec3F;
+begin
+  Result.X := Max(X, Vec.X);
+  Result.Y := Max(Y, Vec.Y);
+  Result.Z := Max(Z, Vec.Z);
+end;
+
 function TVec3F.Dot(const Vec: TVec3F): Single;
 begin
   Result := Self * Vec;
@@ -486,20 +496,6 @@ end;
 function TVec3F.LengthSqr(): Single;
 begin
   Result := X * X + Y * Y + Z * Z;
-end;
-
-function TVec3F.Min(const Vec: TVec3F): TVec3F;
-begin
-  Result.X := uMathUtils.Min(X, Vec.X);
-  Result.Y := uMathUtils.Min(Y, Vec.Y);
-  Result.Z := uMathUtils.Min(Z, Vec.Z);
-end;
-
-function TVec3F.Max(const Vec: TVec3F): TVec3F;
-begin
-  Result.X := uMathUtils.Max(X, Vec.X);
-  Result.Y := uMathUtils.Max(Y, Vec.Y);
-  Result.Z := uMathUtils.Max(Z, Vec.Z);
 end;
 
 function TVec3F.IsZero(): Boolean;

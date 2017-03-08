@@ -53,7 +53,7 @@ object MainForm: TMainForm
     object lblRenderPerformance: TLabel
       Left = 186
       Top = 91
-      Width = 73
+      Width = 3
       Height = 13
     end
     object btnRender: TButton

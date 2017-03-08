@@ -89,7 +89,7 @@ constructor TBVHNode.Create(var AList: array of THitable; AFrom, ATo: Integer; A
     if not A.BoundingBox(ATime0, ATime1, BoxLeft) or not B.BoundingBox(ATime0, ATime1, BoxRight) then
       Result := 0
     else
-      Result := Sign(BoxLeft.Min.X - BoxRight.Min.X);
+      Result := Sign(BoxLeft.Min_.X - BoxRight.Min_.X);
   end;
 
   function CompareY(A, B: THitable; ATime0, ATime1: Single): Integer;
@@ -99,7 +99,7 @@ constructor TBVHNode.Create(var AList: array of THitable; AFrom, ATo: Integer; A
     if not A.BoundingBox(ATime0, ATime1, BoxLeft) or not B.BoundingBox(ATime0, ATime1, BoxRight) then
       Result := 0
     else
-      Result := Sign(BoxLeft.Min.Y - BoxRight.Min.Y);
+      Result := Sign(BoxLeft.Min_.Y - BoxRight.Min_.Y);
   end;
 
   function CompareZ(A, B: THitable; ATime0, ATime1: Single): Integer;
@@ -109,7 +109,7 @@ constructor TBVHNode.Create(var AList: array of THitable; AFrom, ATo: Integer; A
     if not A.BoundingBox(ATime0, ATime1, BoxLeft) or not B.BoundingBox(ATime0, ATime1, BoxRight) then
       Result := 0
     else
-      Result := Sign(BoxLeft.Min.Z - BoxRight.Min.Z);
+      Result := Sign(BoxLeft.Min_.Z - BoxRight.Min_.Z);
   end;
 
 var

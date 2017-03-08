@@ -125,14 +125,16 @@ begin
   RayOrigin := FCenter;
   // In screen plane image is inverted
   ScreenPoint := RayOrigin - Direction - (0.5 - U) * FHorz - (0.5 - V) * FVert;
-  RayDirection := (RayOrigin - ScreenPoint).Normalize;
   if Aperture > 0 then
   begin
+    RayDirection := (RayOrigin - ScreenPoint).Normalize;
     FocusPoint := RayOrigin + RayDirection * FocusDistance / RayDirection.Dot(Direction);
     PointOnAperture := FAperture * RandomInUnitDisk;
     RayOrigin := RayOrigin + PointOnAperture.X * FHorz + PointOnAperture.Y * FVert;
-    RayDirection := (FocusPoint - RayOrigin).Normalize;
-  end;
+    RayDirection := FocusPoint - RayOrigin;
+  end
+  else
+    RayDirection := RayOrigin - ScreenPoint;
   Time := FTime0 + RandomF * (FTime1 - FTime0);
   Result := TRay.Create(RayOrigin, RayDirection, Time);
 end;

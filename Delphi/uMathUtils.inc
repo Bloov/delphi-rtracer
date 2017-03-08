@@ -1,21 +1,3 @@
-{$IFDEF Min}
-begin
-  if A < B then
-    Result := A
-  else
-    Result := B;
-end;
-{$ENDIF}
-
-{$IFDEF Max}
-begin
-  if A > B then
-    Result := A
-  else
-    Result := B;
-end;
-{$ENDIF}
-
 {$IFDEF Swap}
 begin
   Tmp := A;
