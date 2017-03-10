@@ -54,7 +54,7 @@ type
     class operator Subtract(const A, B: TVec3F): TVec3F; inline;
     class operator Multiply(const A: TVec3F; B: Single): TVec3F; overload; inline;
     class operator Multiply(A: Single; const B: TVec3F): TVec3F; overload; inline;
-    class operator Multiply(const A, B: TVec3F): Single; overload; inline;
+    class operator Multiply(const A, B: TVec3F): Single; overload; //inline;
     class operator Divide(const A: TVec3F; B: Single): TVec3F; overload; inline;
     class operator Divide(A: Single; const B: TVec3F): TVec3F; overload; inline;
 
@@ -65,7 +65,7 @@ type
     function CMax(const Vec: TVec3F): TVec3F;
 
     function Dot(const Vec: TVec3F): Single; inline;
-    function Cross(const Vec: TVec3F): TVec3F; inline;
+    function Cross(const Vec: TVec3F): TVec3F; //inline;
     function Projection(const Vec: TVec3F): TVec3F; inline;
     function Normalize(): TVec3F; inline;
     function Distance(const Vec: TVec3F): Single; inline;
@@ -83,7 +83,7 @@ type
     function IsInf(): Boolean;
 
     case Boolean of
-      True: (Arr: array [0..2] of Single);
+      True: (Arr: array [0..3] of Single);
       False: (X, Y, Z: Single);
   end;
 
