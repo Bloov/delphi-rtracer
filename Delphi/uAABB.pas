@@ -56,8 +56,6 @@ var
   invD: Single;
   cMin, cMax: Single;
 begin
-  MinDist := 0;
-  MaxDist := 0;
   for I := 0 to 2 do
     if ARay.Direction.Arr[I] <> 0 then
     begin
