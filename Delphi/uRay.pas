@@ -8,21 +8,20 @@ uses
 type
   TRay = packed record
   private
-    FOrigin: TVec3F;
-    FDirection: TVec3F;
-    FInvDirection: TVec3F;
-    FTime: Single;
-
     procedure SetDirection(const Value: TVec3F);
   public
+    Origin: TVec3F;
+    // Do not set explicitly, use property!
+    FDirection: TVec3F;
+    FInvDirection: TVec3F;
+    Time: Single;
+
     constructor Create(const AOrigin, ADirection: TVec3F; ATime: Single = 0);
 
     function At(ADistance: Single): TVec3F; inline;
 
-    property Origin: TVec3F read FOrigin write FOrigin;
     property Direction: TVec3F read FDirection write SetDirection;
     property InvDirection: TVec3F read FInvDirection;
-    property Time: Single read FTime write FTime;
   end;
 
 implementation

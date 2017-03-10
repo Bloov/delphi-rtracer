@@ -25,8 +25,6 @@ object MainForm: TMainForm
     Align = alLeft
     Alignment = taLeftJustify
     TabOrder = 0
-    ExplicitLeft = -24
-    ExplicitTop = -8
     DesignSize = (
       265
       548)
@@ -90,7 +88,7 @@ object MainForm: TMainForm
       Height = 169
       Anchors = [akLeft, akBottom]
       ItemHeight = 13
-      TabOrder = 5
+      TabOrder = 6
     end
     object btnClearText: TButton
       Left = 176
@@ -99,7 +97,7 @@ object MainForm: TMainForm
       Height = 25
       Anchors = [akRight, akBottom]
       Caption = 'Clear'
-      TabOrder = 4
+      TabOrder = 5
       OnClick = btnClearTextClick
     end
     object btnBenchmarkScene: TButton
@@ -108,8 +106,17 @@ object MainForm: TMainForm
       Width = 113
       Height = 33
       Caption = 'Benchmark Scene'
-      TabOrder = 3
+      TabOrder = 4
       OnClick = btnBenchmarkSceneClick
+    end
+    object btnBenchmarkAABB: TButton
+      Left = 146
+      Top = 132
+      Width = 113
+      Height = 33
+      Caption = 'Benchmark AABB'
+      TabOrder = 3
+      OnClick = btnBenchmarkAABBClick
     end
   end
   object pRender: TPanel
@@ -137,7 +144,7 @@ object MainForm: TMainForm
   object dlgSaveImage: TSaveDialog
     DefaultExt = '*.png'
     Filter = 'PNG Image|*.png'
-    Left = 136
-    Top = 136
+    Left = 8
+    Top = 216
   end
 end

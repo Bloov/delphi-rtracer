@@ -23,11 +23,13 @@ type
     btnBenchmarkScene: TButton;
     Label2: TLabel;
     lblRenderPerformance: TLabel;
+    btnBenchmarkAABB: TButton;
     procedure btnRenderClick(Sender: TObject);
     procedure btnSaveImageClick(Sender: TObject);
     procedure btnBenchmarkCameraClick(Sender: TObject);
     procedure btnClearTextClick(Sender: TObject);
     procedure btnBenchmarkSceneClick(Sender: TObject);
+    procedure btnBenchmarkAABBClick(Sender: TObject);
   private
     procedure MakeTestScene(ARenderer: TRenderer);
     procedure MakeRandomSpheresScene(ARenderer: TRenderer);
@@ -44,7 +46,8 @@ implementation
 {$R *.dfm}
 
 uses
-  VCL.Imaging.PngImage, uScene, uCamera, uHitable, uMaterial, uColor, uRay, uMathUtils;
+  VCL.Imaging.PngImage, Math,
+  uScene, uCamera, uHitable, uMaterial, uColor, uRay, uMathUtils, uAABB;
 
 procedure TMainForm.AfterConstruction;
 begin
@@ -105,6 +108,60 @@ begin
   ARenderer.Scene.Add(TSphere.Create(Vec3F(4, 1, 0), 1, TMetal.Create(ColorVec(0.7, 0.6, 0.5), 0)));
 
   ARenderer.Scene.BuildBVH(ARenderer.Camera.Time0, ARenderer.Camera.Time1);
+end;
+
+procedure TMainForm.btnBenchmarkAABBClick(Sender: TObject);
+const
+  cTestRays = 16 * 1024;
+  cTestAABB = 4 * 1024;
+var
+  I, J: Integer;
+  Camera: TPerspectiveCamera;
+  TestRays: array of TRay;
+  TestAABB: array of TAABB;
+  MinP, MaxP, Diff: TVec3F;
+  MinD, MaxD: Single;
+  StartTime, EndTime, Freq: Int64;
+  TotalHits, TotalTime: Single;
+  A, B: Integer;
+begin
+  Camera := TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 45, 0.05, 10);
+  try
+    Camera.SetupView(1024, 1024);
+    RandSeed := 123456;
+
+    SetLength(TestRays, cTestRays);
+    for I := 0 to cTestRays - 1 do
+      TestRays[I] := Camera.GetRay(RandomF, RandomF);
+
+    SetLength(TestAABB, cTestAABB);
+    for I := 0 to cTestAABB - 1 do
+    begin
+      MinP := Vec3F(0.1, 0.1, 0.1) + 0.8 * Vec3F(RandomF, RandomF, RandomF);
+      Diff := Vec3F(1.0, 1.0, 1.0) - MinP;
+      MaxP := MinP + Diff.CMul(Vec3F(0.1 + 0.9 * RandomF, 0.1 + 0.9 * RandomF, 0.1 + 0.9 * RandomF));
+      TestAABB[I] := TAABB.Create(MinP, MaxP);
+    end;
+
+    QueryPerformanceCounter(StartTime);
+      for I := 0 to cTestAABB - 1 do
+        for J := 0 to cTestRays - 1 do
+        begin
+          MinD := 0;
+          MaxD := MaxSingle;
+          TestAABB[I].Hit{Native}(TestRays[J], MinD, MaxD);
+        end;
+    QueryPerformanceCounter(EndTime);
+    QueryPerformanceFrequency(Freq);
+
+    TotalTime := (EndTime - StartTime) / Freq;
+    TotalHits := cTestRays * (1.0 * cTestAABB);
+    lbText.Items.Add('AABB performance:');
+    lbText.Items.Add(Format('  total time %.3f seconds', [TotalTime]));
+    lbText.Items.Add(Format('  %.3f MHits per second', [TotalHits / (TotalTime * 1e6)]));
+  finally
+    FreeAndNil(Camera);
+  end;
 end;
 
 procedure TMainForm.btnBenchmarkCameraClick(Sender: TObject);
@@ -194,6 +251,7 @@ begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
+    RandSeed := 123456;
     MakeRandomSpheresScene(Renderer);
     //MakeTestScene(Renderer);
 
