@@ -28,7 +28,12 @@ uses
   Math, uMathUtils;
 
 var
-  VecInf, VecNegInf: TVec3F;
+  {Spacer0: Integer;
+  Spacer1: Integer;
+  Spacer2: Integer;}
+  // Apply spacers for adjust Vectors align by 16 byte
+  VecInf: TVec3F;
+  VecNegInf: TVec3F;
 
 { TAABB }
 constructor TAABB.Create(const A, B: TVec3F);
@@ -135,6 +140,9 @@ begin
 end;
 
 initialization
+  {Spacer0 := 0;
+  Spacer1 := 0;
+  Spacer2 := 0;}
   VecInf := Vec3F(Infinity, Infinity, Infinity);
   VecNegInf := Vec3F(NegInfinity, NegInfinity, NegInfinity);
 end.

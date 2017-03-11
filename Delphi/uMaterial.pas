@@ -162,7 +162,8 @@ begin
   else
   begin
     Scattered.Origin := AOrigin - Normal * cPrecisionDelta;
-    Scattered.Direction := AIncident * (N1 / N2) + Normal * ((N1 / N2) * CosIn - CosOut);
+    R := N1 / N2;
+    Scattered.Direction := AIncident * R + Normal * (R * CosIn - CosOut);
   end;
   Result := True;
 end;

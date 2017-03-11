@@ -65,7 +65,8 @@ type
     function CMax(const Vec: TVec3F): TVec3F;
 
     function Dot(const Vec: TVec3F): Single; inline;
-    function Cross(const Vec: TVec3F): TVec3F; //inline;
+    function CrossAsm(const Vec: TVec3F): TVec3F;
+    function Cross{Native}(const Vec: TVec3F): TVec3F; inline;
     function Projection(const Vec: TVec3F): TVec3F; inline;
     function NormalizeAsm(): TVec3F; //inline;
     function Normalize{Native}(): TVec3F; inline;
@@ -96,6 +97,17 @@ implementation
 
 uses
   Math, uMathUtils;
+
+var
+  {Spacer0: Integer;
+  Spacer1: Integer;
+  Spacer2: Integer;}
+  // Apply spacers for adjust Vectors align by 16 byte
+  Vec3Mask: TVec3F;
+  XUnit: TVec3F;
+  YUnit: TVec3F;
+  ZUnit: TVec3F;
+  AllUnit: TVec3F;
 
 function Vec2F(X, Y: Single): TVec2F;
 begin
@@ -348,22 +360,15 @@ begin
 end;
 
 class operator TVec3F.Multiply(const A, B: TVec3F): Single;
-{asm
-  movups  xmm0, [A];
-  movups  xmm1, [B];
-  mulps   xmm0, xmm1;
-  // set last to 0
-  xorps   xmm1, xmm1;
-  movhlps xmm1, xmm0;
-  shufps  xmm0, xmm1, 11000100b; //3, 0, 1, 0
-
-  haddps xmm0, xmm0;
-  haddps xmm0, xmm0;
+asm
+  movups xmm0, [A];
+  movups xmm1, [B];
+  dpps   xmm0, xmm1, 01110001b;
   movss  [Result], xmm0;
-end;}
-begin
-  Result := A.X * B.X + A.Y * B.Y + A.Z * B.Z;
 end;
+{begin
+  Result := A.X * B.X + A.Y * B.Y + A.Z * B.Z;
+end;}
 
 class operator TVec3F.Divide(const A: TVec3F; B: Single): TVec3F;
 var
@@ -415,10 +420,13 @@ begin
   Result := Self * Vec;
 end;
 
-function TVec3F.Cross(const Vec: TVec3F): TVec3F;
-{asm
+function TVec3F.CrossAsm(const Vec: TVec3F): TVec3F;
+asm
   movups xmm0, [Self];
   movups xmm1, [Vec];
+  movaps xmm7, [Vec3Mask];
+  andps  xmm0, xmm7;
+  andps  xmm1, xmm7;
   movaps xmm2, xmm0;
   movaps xmm3, xmm1;
 
@@ -432,7 +440,9 @@ function TVec3F.Cross(const Vec: TVec3F): TVec3F;
   subps  xmm0, xmm2;
 
   movups [Result], xmm0;
-end;}
+end;
+
+function TVec3F.Cross{Native}(const Vec: TVec3F): TVec3F;
 begin
   Result.X := Y * Vec.Z - Z * Vec.Y;
   Result.Y := Z * Vec.X - X * Vec.Z;
@@ -453,19 +463,16 @@ end;
 function TVec3F.NormalizeAsm(): TVec3F;
 asm
   movups  xmm0, [Self];
-  // set last to 0
-  xorps   xmm1, xmm1;
-  movhlps xmm1, xmm0;
-  shufps  xmm0, xmm1, 11000100b; //3, 0, 1, 0
+  movaps  xmm7, [Vec3Mask];
+  andps   xmm0, xmm7;
   movaps  xmm2, xmm0;
 
   mulps   xmm0, xmm0;
   haddps  xmm0, xmm0;
   haddps  xmm0, xmm0;
+  //dpps    xmm0, xmm0, 01111111b;
   sqrtps  xmm0, xmm0;
   divps   xmm2, xmm0;
-  {rsqrtps xmm0, xmm0;
-  mulps   xmm2, xmm0;}
 
   movups  [Result], xmm2;
 end;
@@ -525,44 +532,34 @@ end;
 
 function TVec3F.Rotate{Asm}(const ANormal: TVec3F): TVec3F;
 const
-  cOne: Single = 1.0;
   cPrecision: Single = 1e-4;
 asm
   movups xmm0, [ANormal];
-  // set last to 0
-  xorps   xmm2, xmm2;
-  movhlps xmm2, xmm0;
-  shufps  xmm0, xmm2, 11000100b; //3, 0, 1, 0
-  // now ANormal in xmm0
-
-  xorps  xmm1, xmm1;
-  movss  xmm1, [cOne];
-  // Vec(1, 0, 0) in xmm1 (XVec)
-
-  movaps xmm2, xmm1;
-  shufps xmm2, xmm2, 11000110b; //3, 0, 1, 2;
-  // now Vec(0, 0, 1) in xmm2 (ZVec)
+  movaps xmm7, [Vec3Mask];
+  andps  xmm0, xmm7;
+  // ANormal in xmm0
+  // Vec3Mask in xmm7
+  movaps xmm1, [XUnit];
+  // XVec in xmm1
+  movaps xmm2, [ZUnit];
+  // ZVec in xmm2
 
   movaps  xmm3, xmm0;
-  mulps   xmm3, xmm2;
-  haddps  xmm3, xmm3;
-  haddps  xmm3, xmm3;
-  // now ANormal * ZVec in xmm3 (dot product)
+  dpps    xmm3, xmm2, 01111111b;
+  // ANormal * ZVec in xmm3 (dot product)
 
-  // find Abs(ANormal * ZVec)
   xorps   xmm4, xmm4;
   subss   xmm4, xmm3;
   maxss   xmm3, xmm4;
-  // now Abs(ANormal * ZVec) in xmm3
+  // Abs(ANormal * ZVec) in xmm3
 
-  // Abs(1 - Abs(ANormal, ZVec))
   subss   xmm1, xmm3;
   xorps   xmm4, xmm4;
   subss   xmm4, xmm1;
   maxss   xmm1, xmm4;
   // Abs(1 - Abs(ANormal, ZVec)) in xmm1
 
-  // is NearValue(Abs(ANormal * Vec(0, 0, 1)), 1, 1e-4)
+  // check 1 - Abs(1 - Abs(ANormal, ZVec)) < cPrecision
   movss  xmm3, [cPrecision];
   comiss xmm3, xmm1;
   ja     @simple_case;
@@ -570,94 +567,76 @@ asm
   // Build the orthonormal basis of the normal vector
   // xmm0 - ANormal
   // xmm2 - ZVec
+
   movaps xmm3, xmm0;
   movaps xmm4, xmm0;
   movaps xmm5, xmm2;
 
-  shufps xmm3, xmm3, 11001001b; //0, 0, 2, 1
-  shufps xmm2, xmm2, 11010010b; //0, 1, 0, 2
-  shufps xmm4, xmm4, 11010010b; //0, 1, 0, 2
-  shufps xmm5, xmm5, 11001001b; //0, 0, 2, 1
+  shufps xmm3, xmm3, 11001001b; //3, 0, 2, 1
+  shufps xmm2, xmm2, 11010010b; //3, 1, 0, 2
+  shufps xmm4, xmm4, 11010010b; //3, 1, 0, 2
+  shufps xmm5, xmm5, 11001001b; //3, 0, 2, 1
 
   mulps  xmm3, xmm2;
   mulps  xmm4, xmm5;
   subps  xmm3, xmm4;
-  // now bX = Cross(ANormal, ZVec) in xmm3
+  // bX = Cross(ANormal, ZVec) in xmm3
 
-  // xmm0 - ANormal
-  // xmm3 - bX
   movaps xmm1, xmm0; // copy ANormal
-  movaps xmm2, xmm0; // copy ANormal
+  movaps xmm2, xmm0;
   movaps xmm4, xmm3; // copy bX
-  movaps xmm5, xmm4; // copy bX
+  movaps xmm5, xmm3;
 
-  shufps xmm1, xmm1, 11001001b; //0, 0, 2, 1
-  shufps xmm4, xmm4, 11010010b; //0, 1, 0, 2
-  shufps xmm2, xmm2, 11010010b; //0, 1, 0, 2
-  shufps xmm5, xmm5, 11001001b; //0, 0, 2, 1
+  shufps xmm1, xmm1, 11001001b; //3, 0, 2, 1
+  shufps xmm4, xmm4, 11010010b; //3, 1, 0, 2
+  shufps xmm2, xmm2, 11010010b; //3, 1, 0, 2
+  shufps xmm5, xmm5, 11001001b; //3, 0, 2, 1
 
   mulps  xmm1, xmm4;
   mulps  xmm2, xmm5;
   subps  xmm1, xmm2;
-  // now bY = Cross(ANormal, bX) in xmm1
+  // bY = Cross(ANormal, bX) in xmm1
 
   // xmm0 - ANormal
   // xmm1 - bY
   // xmm3 - bX
 
   // Normalize bX
-  // set last to 0
-  xorps   xmm4, xmm4;
-  movhlps xmm4, xmm3;
-  shufps  xmm3, xmm4, 11000100b; //3, 0, 1, 0
   movaps  xmm2, xmm3;
-
-  mulps   xmm3, xmm3;
-  haddps  xmm3, xmm3;
-  haddps  xmm3, xmm3;
+  dpps    xmm3, xmm3, 01111111b
   sqrtps  xmm3, xmm3;
   divps   xmm2, xmm3;
-  // now bX in xmm2
+  // bX in xmm2
 
   // Normalize bY
-  // set last to 0
-  xorps   xmm4, xmm4;
-  movhlps xmm4, xmm1;
-  shufps  xmm1, xmm4, 11000100b; //3, 0, 1, 0
   movaps  xmm3, xmm1;
-
-  mulps   xmm1, xmm1;
-  haddps  xmm1, xmm1;
-  haddps  xmm1, xmm1;
+  dpps    xmm1, xmm1, 01111111b;
   sqrtps  xmm1, xmm1;
   divps   xmm3, xmm1;
-  // now bY in xmm3
+  // bY in xmm3
 
   // Transform the unit vector to this basis
   // xmm0 - ANormal
   // xmm2 - bX
   // xmm3 - bY
+
   movups  xmm1, [Self];
+  andps   xmm1, xmm7;
+  // Self in xmm1
+
   movss   xmm4, xmm1; // Get X
   shufps  xmm4, xmm4, 00000000b;
-  // is equivalent?
-  {movlhps xmm4, xmm4;
-  haddps  xmm4, xmm4;}
-  mulps   xmm4, xmm2;
+  mulps   xmm4, xmm2; // X * bX
 
   shufps  xmm1, xmm1, 11001001b; // rotate xyzw -> yxzw
   movss   xmm5, xmm1; // Get Y
   shufps  xmm5, xmm5, 00000000b;
-  {movlhps xmm5, xmm5;
-  haddps  xmm5, xmm5;}
-  mulps   xmm5, xmm3;
+  mulps   xmm5, xmm3; // Y * bY
 
-  shufps  xmm1, xmm1, 11001001b; // rotate xyzw -> yxzw
+  shufps  xmm1, xmm1, 11001001b; // rotate yzxw -> zxyw
   movss   xmm6, xmm1; // Get Z
   shufps  xmm6, xmm6, 00000000b;
-  {movlhps xmm6, xmm6;
-  haddps  xmm6, xmm6;}
-  mulps   xmm6, xmm0;
+  mulps   xmm6, xmm0; // Z * ANormal
 
   addps   xmm4, xmm5;
   addps   xmm4, xmm6;
@@ -665,17 +644,9 @@ asm
   jmp     @return;
 
 @simple_case:
-  //Result := Self * uMathUtils.Sign(Self.Dot(ANormal));
   // xmm0 - ANormal
   movups  xmm1, [Self];
-  // set last to 0
-  xorps   xmm2, xmm2;
-  movhlps xmm2, xmm1;
-  shufps  xmm1, xmm2, 11000100b; //3, 0, 1, 0
-
-  mulps   xmm0, xmm1;
-  haddps  xmm0, xmm0;
-  haddps  xmm0, xmm0;
+  dpps    xmm0, xmm1, 01111111b;
   // now ANormal * Self in xmm0 (dot product)
 
   xorps   xmm2, xmm2;
@@ -687,17 +658,20 @@ asm
   jmp     @return;
 
 @simple_result:
+  //  Result = Self * Sign(Self * ANormal);
   movups  [Result], xmm1;
 
 @return:
 end;
 
 function TVec3F.RotateNative(const ANormal: TVec3F): TVec3F;
+const
+  cPrecision: Single = 1e-4;
 var
   bX, bY: TVec3F;
 begin
   // If the normal vector is already the world space upwards (or downwards) vector, don't do anything
-  if not NearValue(Abs(ANormal * Vec3F(0, 0, 1)), 1, 1e-4) then
+  if not NearValue(Abs(ANormal * Vec3F(0, 0, 1)), 1, cPrecision) then
   begin
     // Build the orthonormal basis of the normal vector.
     bX := ANormal.Cross(Vec3F(0, 0, 1)).Normalize;
@@ -739,5 +713,26 @@ begin
   Result := IsInfinite(X) or IsInfinite(Y) or IsInfinite(Z);
 end;
 
+initialization
+  {Spacer0 := 0;
+  Spacer1 := 0;
+  Spacer2 := 0;}
+
+  PCardinal(Pointer(@Vec3Mask.Arr[0]))^ := $FFFFFFFF;
+  PCardinal(Pointer(@Vec3Mask.Arr[1]))^ := $FFFFFFFF;
+  PCardinal(Pointer(@Vec3Mask.Arr[2]))^ := $FFFFFFFF;
+  PCardinal(Pointer(@Vec3Mask.Arr[3]))^ := 0;
+
+  XUnit := Vec3F(1, 0, 0);
+  XUnit.Arr[3] := 0;
+
+  YUnit := Vec3F(0, 1, 0);
+  YUnit.Arr[3] := 0;
+
+  ZUnit := Vec3F(0, 0, 1);
+  ZUnit.Arr[3] := 0;
+
+  AllUnit := Vec3F(1, 1, 1);
+  AllUnit.Arr[3] := 0;
 end.
 
