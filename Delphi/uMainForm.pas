@@ -24,12 +24,14 @@ type
     Label2: TLabel;
     lblRenderPerformance: TLabel;
     btnBenchmarkAABB: TButton;
+    btnBenchmarkRotate: TButton;
     procedure btnRenderClick(Sender: TObject);
     procedure btnSaveImageClick(Sender: TObject);
     procedure btnBenchmarkCameraClick(Sender: TObject);
     procedure btnClearTextClick(Sender: TObject);
     procedure btnBenchmarkSceneClick(Sender: TObject);
     procedure btnBenchmarkAABBClick(Sender: TObject);
+    procedure btnBenchmarkRotateClick(Sender: TObject);
   private
     procedure MakeTestScene(ARenderer: TRenderer);
     procedure MakeRandomSpheresScene(ARenderer: TRenderer);
@@ -47,7 +49,8 @@ implementation
 
 uses
   VCL.Imaging.PngImage, Math,
-  uScene, uCamera, uHitable, uMaterial, uColor, uRay, uMathUtils, uAABB;
+  uScene, uCamera, uHitable, uMaterial, uColor, uRay,
+  uMathUtils, uAABB, uSamplingUtils;
 
 procedure TMainForm.AfterConstruction;
 begin
@@ -123,7 +126,6 @@ var
   MinD, MaxD: Single;
   StartTime, EndTime, Freq: Int64;
   TotalHits, TotalTime: Single;
-  A, B: Integer;
 begin
   Camera := TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 45, 0.05, 10);
   try
@@ -197,6 +199,69 @@ begin
   finally
     FreeAndNil(Camera);
   end;
+end;
+
+procedure TMainForm.btnBenchmarkRotateClick(Sender: TObject);
+const
+  cTestVecs = 8 * 1024;
+var
+  I, J: Integer;
+  Rot, RotN, Diff: TVec3F;
+  Success: Boolean;
+  TestVecs: array of TVec3F;
+  StartTime, EndTime, Freq: Int64;
+  TotalRotates, TotalTime: Single;
+begin
+  RandSeed := 123456;
+  SetLength(TestVecs, cTestVecs);
+  for I := 0 to cTestVecs - 1 do
+    TestVecs[I] := RandomOnUnitHemisphere;
+
+  QueryPerformanceCounter(StartTime);
+    for I := 0 to cTestVecs - 2 do
+      for J := I + 1 to cTestVecs - 1 do
+        TestVecs[I].Rotate(TestVecs[J]);
+  QueryPerformanceCounter(EndTime);
+  QueryPerformanceFrequency(Freq);
+
+  TotalTime := (EndTime - StartTime) / Freq;
+  TotalRotates := cTestVecs * (cTestVecs - 1) / 2;
+  lbText.Items.Add('Rotate performance:');
+  lbText.Items.Add(Format('  total time %.3f seconds', [TotalTime]));
+  lbText.Items.Add(Format('  %.3f MRot per second', [TotalRotates / (TotalTime * 1e6)]));
+
+  QueryPerformanceCounter(StartTime);
+    for I := 0 to cTestVecs - 2 do
+      for J := I + 1 to cTestVecs - 1 do
+        TestVecs[I].RotateNative(TestVecs[J]);
+  QueryPerformanceCounter(EndTime);
+  QueryPerformanceFrequency(Freq);
+
+  TotalTime := (EndTime - StartTime) / Freq;
+  TotalRotates := cTestVecs * (cTestVecs - 1) / 2;
+  lbText.Items.Add('Native rotate performance:');
+  lbText.Items.Add(Format('  total time %.3f seconds', [TotalTime]));
+  lbText.Items.Add(Format('  %.3f MRot per second', [TotalRotates / (TotalTime * 1e6)]));
+
+  Success := True;
+  for I := 0 to cTestVecs - 2 do
+  begin
+    if not Success then
+      Break;
+
+    for J := I + 1 to cTestVecs - 1 do
+    begin
+      RotN := TestVecs[I].RotateNative(TestVecs[J]);
+      Rot := TestVecs[I].Rotate(TestVecs[J]);
+      Diff := Rot - RotN;
+      if Diff.Length > 1e-5 then
+      begin
+        Success := False;
+        Break;
+      end;
+    end;
+  end;
+  lbText.Items.Add(Format('Same results: %s', [BoolToStr(Success, True)]));
 end;
 
 procedure TMainForm.btnBenchmarkSceneClick(Sender: TObject);
