@@ -105,7 +105,7 @@ var
 begin
   ToSphere := Center - ARay.Origin;
   B := ToSphere * ARay.Direction;
-  Disc := B * B - ToSphere * ToSphere - Radius * Radius;
+  Disc := B * B - ToSphere * ToSphere + Radius * Radius;
   if Disc >= 0 then
   begin
     Disc := Sqrt(Disc);
@@ -164,7 +164,7 @@ begin
   Center := CenterAt(ARay.Time);
   ToSphere := Center - ARay.Origin;
   B := ToSphere * ARay.Direction;
-  Disc := B * B - ToSphere * ToSphere - Radius * Radius;
+  Disc := B * B - ToSphere * ToSphere + Radius * Radius;
   if Disc >= 0 then
   begin
     Disc := Sqrt(Disc);
