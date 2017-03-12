@@ -97,7 +97,7 @@ object MainForm: TMainForm
       Height = 25
       Anchors = [akRight, akBottom]
       Caption = 'Clear'
-      TabOrder = 7
+      TabOrder = 8
       OnClick = btnClearTextClick
     end
     object btnBenchmarkScene: TButton
@@ -126,6 +126,15 @@ object MainForm: TMainForm
       Caption = 'Benchmark Rotate'
       TabOrder = 5
       OnClick = btnBenchmarkRotateClick
+    end
+    object btnBenchmarkHit: TButton
+      Left = 146
+      Top = 210
+      Width = 113
+      Height = 33
+      Caption = 'Benchmark Hit'
+      TabOrder = 7
+      OnClick = btnBenchmarkHitClick
     end
   end
   object pRender: TPanel

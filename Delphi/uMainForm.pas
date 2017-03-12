@@ -25,6 +25,7 @@ type
     lblRenderPerformance: TLabel;
     btnBenchmarkAABB: TButton;
     btnBenchmarkRotate: TButton;
+    btnBenchmarkHit: TButton;
     procedure btnRenderClick(Sender: TObject);
     procedure btnSaveImageClick(Sender: TObject);
     procedure btnBenchmarkCameraClick(Sender: TObject);
@@ -32,6 +33,7 @@ type
     procedure btnBenchmarkSceneClick(Sender: TObject);
     procedure btnBenchmarkAABBClick(Sender: TObject);
     procedure btnBenchmarkRotateClick(Sender: TObject);
+    procedure btnBenchmarkHitClick(Sender: TObject);
   private
     procedure MakeTestScene(ARenderer: TRenderer);
     procedure MakeRandomSpheresScene(ARenderer: TRenderer);
@@ -78,6 +80,9 @@ begin
 end;
 
 procedure TMainForm.MakeRandomSpheresScene(ARenderer: TRenderer);
+const
+  cLambertProb = 0.72;
+  cMetalProb = 0.92;
 var
   A, B: Integer;
   MatProb: Single;
@@ -94,10 +99,10 @@ begin
       Center := Vec3F(A + 0.9 * RandomF, 0.2, B + 0.9 * RandomF);
       if (Center - Vec3F(4, 0.2, 0)).Length > 0.9 then
       begin
-        if MatProb < 0.72 then
+        if MatProb < cLambertProb then
           ARenderer.Scene.Add(
             TMovingSphere.Create(Center, Center + Vec3F(0, 0.5 * RandomF, 0), 0.2, 0, 1, TLambertian.Create(ColorVec(RandomF * RandomF, RandomF * RandomF, RandomF * RandomF))))
-        else if MatProb < 0.92 then
+        else if MatProb < cMetalProb then
           ARenderer.Scene.Add(
             TSphere.Create(Center, 0.2, TMetal.Create(ColorVec(0.5 * (1 + RandomF), 0.5 * (1 + RandomF), 0.5 * (1 + RandomF)), 0.5 * RandomF)))
         else
@@ -199,6 +204,57 @@ begin
   finally
     FreeAndNil(Camera);
   end;
+end;
+
+procedure TMainForm.btnBenchmarkHitClick(Sender: TObject);
+const
+  cTestRays = 8 * 1024;
+  cTestSpheres = 8 * 1024;
+var
+  I, J: Integer;
+  TestSpheres: array of THitable;
+  TestRays: array of TRay;
+  Origin: TVec3F;
+  Hit: TRayHit;
+  MinD, MaxD: Single;
+  StartTime, EndTime, Freq: Int64;
+  TotalHits, TotalTime: Single;
+begin
+  RandSeed := 123456;
+
+  SetLength(TestSpheres, cTestSpheres);
+  for I := 0 to cTestSpheres - 1 do
+  begin
+    Origin := RandomInUnitSphere * 3;
+    if RandomF > 0.8 then
+      TestSpheres[I] := TMovingSphere.Create(Origin, Origin - Vec3F(1, 1, 1), 1, 0, 1, TMetal.Create(ColorVec(100, 100, 100)))
+    else
+      TestSpheres[I] := TSphere.Create(Origin, 1, TMetal.Create(ColorVec(100, 100, 100)));
+  end;
+
+  SetLength(TestRays, cTestRays);
+  for I := 0 to cTestRays - 1 do
+  begin
+    Origin := RandomOnUnitSphere * 10;
+    TestRays[I] := TRay.Create(Origin, Vec3F(0, 0, 0) - Origin, RandomF);
+  end;
+
+  QueryPerformanceCounter(StartTime);
+    for I := 0 to cTestRays - 1 do
+      for J := 0 to cTestSpheres - 1 do
+      begin
+        MinD := 0;
+        MaxD := MaxSingle;
+        TestSpheres[J].Hit{Native}(TestRays[I], MinD, MaxD, Hit);
+      end;
+  QueryPerformanceCounter(EndTime);
+  QueryPerformanceFrequency(Freq);
+
+  TotalTime := (EndTime - StartTime) / Freq;
+  TotalHits := cTestRays * cTestSpheres;
+  lbText.Items.Add('Hit performance:');
+  lbText.Items.Add(Format('  total time %.3f seconds', [TotalTime]));
+  lbText.Items.Add(Format('  %.3f MHits per second', [TotalHits / (TotalTime * 1e6)]));
 end;
 
 procedure TMainForm.btnBenchmarkRotateClick(Sender: TObject);
