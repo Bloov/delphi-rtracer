@@ -153,7 +153,7 @@ begin
   Disc := FastDisc(ARay, Dist);
   {ToSphere := Center - ARay.Origin;
   B := ToSphere * ARay.Direction;
-  Disc := B * B - ToSphere * ToSphere - Radius * Radius};
+  Disc := B * B - ToSphere * ToSphere + Radius * Radius;}
   if Disc >= 0 then
   begin
     {Disc := Sqrt(Disc);
@@ -257,7 +257,7 @@ begin
   Disc := FastDisc(ARay, Center, Dist);
   {ToSphere := Center - ARay.Origin;
   B := ToSphere * ARay.Direction;
-  Disc := B * B - ToSphere * ToSphere - Radius * Radius;}
+  Disc := B * B - ToSphere * ToSphere + Radius * Radius;}
   if Disc >= 0 then
   begin
     {Disc := Sqrt(Disc);
