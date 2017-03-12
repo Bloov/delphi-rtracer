@@ -166,6 +166,23 @@ begin
     lbText.Items.Add('AABB performance:');
     lbText.Items.Add(Format('  total time %.3f seconds', [TotalTime]));
     lbText.Items.Add(Format('  %.3f MHits per second', [TotalHits / (TotalTime * 1e6)]));
+
+    QueryPerformanceCounter(StartTime);
+      for I := 0 to cTestAABB - 1 do
+        for J := 0 to cTestRays - 1 do
+        begin
+          MinD := 0;
+          MaxD := MaxSingle;
+          TestAABB[I].HitNative(TestRays[J], MinD, MaxD);
+        end;
+    QueryPerformanceCounter(EndTime);
+    QueryPerformanceFrequency(Freq);
+
+    TotalTime := (EndTime - StartTime) / Freq;
+    TotalHits := cTestRays * (1.0 * cTestAABB);
+    lbText.Items.Add('Native AABB performance:');
+    lbText.Items.Add(Format('  total time %.3f seconds', [TotalTime]));
+    lbText.Items.Add(Format('  %.3f MHits per second', [TotalHits / (TotalTime * 1e6)]));
   finally
     FreeAndNil(Camera);
   end;
