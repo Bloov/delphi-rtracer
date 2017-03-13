@@ -15,7 +15,6 @@ object MainForm: TMainForm
   Font.Style = []
   OldCreateOrder = False
   Position = poScreenCenter
-  ExplicitHeight = 240
   PixelsPerInch = 96
   TextHeight = 13
   object pControls: TPanel
@@ -84,19 +83,19 @@ object MainForm: TMainForm
     end
     object lbText: TListBox
       Left = 8
-      Top = 368
+      Top = 328
       Width = 251
-      Height = 169
-      Anchors = [akLeft, akBottom]
+      Height = 209
+      Anchors = [akLeft, akTop, akBottom]
       ItemHeight = 13
-      TabOrder = 6
+      TabOrder = 4
     end
     object btnClearText: TButton
-      Left = 176
-      Top = 337
+      Left = 184
+      Top = 297
       Width = 75
       Height = 25
-      Anchors = [akRight, akBottom]
+      Anchors = [akTop, akRight]
       Caption = 'Clear'
       TabOrder = 8
       OnClick = btnClearTextClick
@@ -107,7 +106,7 @@ object MainForm: TMainForm
       Width = 113
       Height = 33
       Caption = 'Benchmark Scene'
-      TabOrder = 4
+      TabOrder = 5
       OnClick = btnBenchmarkSceneClick
     end
     object btnBenchmarkAABB: TButton
@@ -125,7 +124,7 @@ object MainForm: TMainForm
       Width = 113
       Height = 33
       Caption = 'Benchmark Rotate'
-      TabOrder = 5
+      TabOrder = 6
       OnClick = btnBenchmarkRotateClick
     end
     object btnBenchmarkHit: TButton

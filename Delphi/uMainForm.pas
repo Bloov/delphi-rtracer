@@ -51,8 +51,9 @@ implementation
 
 uses
   VCL.Imaging.PngImage, Math,
-  uScene, uCamera, uHitable, uMaterial, uColor, uRay,
-  uMathUtils, uAABB, uSamplingUtils;
+  uMathUtils, uAABB, uSamplingUtils,
+  uScene, uCamera, uHitable, uRay,
+  uMaterial, uColor, uTexture;
 
 procedure TMainForm.AfterConstruction;
 begin
@@ -68,30 +69,33 @@ begin
   ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(3, 3, 2), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 45, 0.0));
   //ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(2, 0, 1), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 55, 0.0));
 
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TLambertian.Create(TConstantTexture.Create(ColorVec(0.1, 0.2, 0.5)))));
   //ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 0, -1), 0.5, TDielectric.Create(1.5)));
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -100.5, -1), 100, TLambertian.Create(ColorVec(0.8, 0.8, 0.0))));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -100.5, -1), 100, TLambertian.Create(TConstantTexture.Create(ColorVec(0.8, 0.8, 0.0)))));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(1, 0, -1), 0.5, TMetal.Create(ColorVec(0.8, 0.6, 0.2), 0.2)));
   //ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TLambertian.Create(ColorVec(0.1, 0.2, 0.5))));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), 0.5, TDielectric.Create(1.5)));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(-1, 0, -1), -0.45, TDielectric.Create(1.5)));
 
-  ARenderer.Scene.BuildBVH(ARenderer.Camera.Time0, ARenderer.Camera.Time1);
+  //ARenderer.Scene.BuildBVH(ARenderer.Camera.Time0, ARenderer.Camera.Time1);
 end;
 
 procedure TMainForm.MakeRandomSpheresScene(ARenderer: TRenderer);
 const
-  cLambertProb = 0.72;
-  cMetalProb = 0.92;
+  cLambertProb = 0.75;
+  cMetalProb = 0.90;
 var
   A, B: Integer;
   MatProb: Single;
   Center: TVec3F;
+  Checker: TTexture;
 begin
-  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 30, 0.0, 10));
+  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 30, 0.05, 10));
   ARenderer.Camera.SetupFrameTime(0, 1);
 
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -1000, 0), 1000, TLambertian.Create(ColorVec(0.5, 0.5, 0.5))));
+  Checker := TCheckerTexture.Create(TConstantTexture.Create(ColorVec(0.2, 0.3, 0.1)),
+                                    TConstantTexture.Create(ColorVec(0.9, 0.9, 0.9)), True);
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -1000, 0), 1000, TLambertian.Create(Checker)));
   for A := -11 to 11 do
     for B := -11 to 11 do
     begin
@@ -101,7 +105,8 @@ begin
       begin
         if MatProb < cLambertProb then
           ARenderer.Scene.Add(
-            TMovingSphere.Create(Center, Center + Vec3F(0, 0.5 * RandomF, 0), 0.2, 0, 1, TLambertian.Create(ColorVec(RandomF * RandomF, RandomF * RandomF, RandomF * RandomF))))
+            TMovingSphere.Create(Center, Center + Vec3F(0, 0.5 * RandomF, 0), 0.2, 0, 1,
+              TLambertian.Create(TConstantTexture.Create(ColorVec(RandomF * RandomF, RandomF * RandomF, RandomF * RandomF)))))
         else if MatProb < cMetalProb then
           ARenderer.Scene.Add(
             TSphere.Create(Center, 0.2, TMetal.Create(ColorVec(0.5 * (1 + RandomF), 0.5 * (1 + RandomF), 0.5 * (1 + RandomF)), 0.5 * RandomF)))
@@ -112,7 +117,7 @@ begin
     end;
 
   ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 1, 0), 1, TDielectric.Create(1.5)));
-  ARenderer.Scene.Add(TSphere.Create(Vec3F(-4, 1, 0), 1, TLambertian.Create(ColorVec(0.4, 0.2, 0.1))));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(-4, 1, 0), 1, TLambertian.Create(TConstantTexture.Create(ColorVec(0.4, 0.2, 0.1)))));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(4, 1, 0), 1, TMetal.Create(ColorVec(0.7, 0.6, 0.5), 0)));
 
   ARenderer.Scene.BuildBVH(ARenderer.Camera.Time0, ARenderer.Camera.Time1);
@@ -190,6 +195,8 @@ end;
 
 procedure TMainForm.btnBenchmarkCameraClick(Sender: TObject);
 const
+  cViewSize = 1024;
+  cInvSize: Single = 1 / cViewSize;
   cSPP = 10;
 var
   Camera: TPerspectiveCamera;
@@ -201,13 +208,13 @@ var
 begin
   Camera := TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 45, 0.05, 10);
   try
-    Camera.SetupView(1024, 1024);
+    Camera.SetupView(cViewSize, cViewSize);
     QueryPerformanceCounter(StartTime);
-      for Y := 0 to 1023 do
-        for X := 0 to 1023 do
+      for Y := 0 to cViewSize - 1 do
+        for X := 0 to cViewSize - 1 do
         begin
-          U := X / 1024;
-          V := Y / 1024;
+          U := X * cInvSize;
+          V := Y * cInvSize;
           for S := 1 to cSPP do
             Ray := Camera.GetRay(U, V);
         end;
@@ -349,7 +356,7 @@ begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
-    RandSeed := 123456;
+    RandSeed := 117;
     MakeRandomSpheresScene(Renderer);
 
     QueryPerformanceCounter(StartTime);
@@ -389,7 +396,7 @@ begin
   Image := nil;
   Renderer := TRenderer.Create(TScene.Create);
   try
-    RandSeed := 123456;
+    RandSeed := 117;
     MakeRandomSpheresScene(Renderer);
     //MakeTestScene(Renderer);
 

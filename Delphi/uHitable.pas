@@ -6,14 +6,15 @@ uses
   uVectors, uAABB, uRay, uMaterial;
 
 type
+  THitable = class;
+
   TRayHit = packed record
   public
-    Point: TVec3F;
-    Normal: TVec3F;
+    Primitive: THitable;
     Distance: Single;
-    Material: TMaterial;
+    Time: Single;
 
-    constructor Create(const APoint, ANormal: TVec3F; ADistance: Single; AMaterial: TMaterial);
+    constructor Create(ADistance, ATime: Single; APrimitive: THitable);
   end;
 
   THitable = class
@@ -24,6 +25,7 @@ type
     destructor Destroy; override;
 
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean; virtual; abstract;
+    function GetNormal(const APoint: TVec3F; ATime: Single = 0): TVec3F; virtual; abstract;
     function BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean; virtual; abstract;
 
     property Material: TMaterial read Fmaterial;
@@ -40,6 +42,7 @@ type
     constructor Create(const ACenter: TVec3F; ARadius: Single; AMaterial: TMaterial);
 
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean; override;
+    function GetNormal(const APoint: TVec3F; ATime: Single = 0): TVec3F; override;
     function BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean; override;
 
     property Center: TVec3F read FCenter;
@@ -59,6 +62,7 @@ type
 
     function CenterAt(ATime: Single): TVec3F;
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean; override;
+    function GetNormal(const APoint: TVec3F; ATime: Single = 0): TVec3F; override;
     function BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean; override;
 
     property Center0: TVec3F read FCenter0;
@@ -72,12 +76,11 @@ uses
   SysUtils, uMathUtils;
 
 { TRayHit }
-constructor TRayHit.Create(const APoint, ANormal: TVec3F; ADistance: Single; AMaterial: TMaterial);
+constructor TRayHit.Create(ADistance, ATime: Single; APrimitive: THitable);
 begin
-  Point := APoint;
-  Normal := ANormal;
+  Primitive := APrimitive;
   Distance := ADistance;
-  Material := AMaterial;
+  Time := ATime;
 end;
 
 { THitable }
@@ -163,16 +166,20 @@ begin
     if (AMinDist <= Dist) and (Dist <= AMaxDist) then
     begin
       Result := True;
-      Hit.Point := ARay.At(Dist);
-      Hit.Normal := FNormalSign * (Hit.Point - Center).Normalize;
+      Hit.Primitive := Self;
       Hit.Distance := Dist;
-      Hit.Material := Material;
+      Hit.Time := ARay.Time;
     end
     else
       Result := False;
   end
   else
     Result := False;
+end;
+
+function TSphere.GetNormal(const APoint: TVec3F; ATime: Single = 0): TVec3F;
+begin
+  Result := FNormalSign * (APoint - Center).Normalize;
 end;
 
 function TSphere.BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean;
@@ -267,16 +274,20 @@ begin
     if (AMinDist <= Dist) and (Dist <= AMaxDist) then
     begin
       Result := True;
-      Hit.Point := ARay.At(Dist);
-      Hit.Normal := FNormalSign * (Hit.Point - Center).Normalize;
+      Hit.Primitive := Self;
       Hit.Distance := Dist;
-      Hit.Material := Material;
+      Hit.Time := ARay.Time;
     end
     else
       Result := False;
   end
   else
     Result := False;
+end;
+
+function TMovingSphere.GetNormal(const APoint: TVec3F; ATime: Single = 0): TVec3F;
+begin
+  Result := FNormalSign * (APoint - CenterAt(ATime)).Normalize;
 end;
 
 function TMovingSphere.BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean;

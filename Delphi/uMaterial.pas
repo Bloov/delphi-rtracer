@@ -3,7 +3,7 @@ unit uMaterial;
 interface
 
 uses
-  uVectors, uRay, uColor;
+  uVectors, uRay, uColor, uTexture;
 
 type
   TMaterial = class
@@ -14,14 +14,16 @@ type
 
   TLambertian = class(TMaterial)
   private
-    FAlbedo: TColorVec;
+    FOwnTexture: Boolean;
+    FAlbedo: TTexture;
   public
-    constructor Create(const anAlbedo: TColorVec);
+    constructor Create(const anAlbedo: TTexture; OwnTexture: Boolean = True);
+    destructor Destroy; override;
 
     function Scatter(const AOrigin, AIncident, ANormal: TVec3F;
       out Scattered: TRay; out Attenuation: TColorVec): Boolean; override;
 
-    property Albedo: TColorVec read FAlbedo;
+    property Albedo: TTexture read FAlbedo;
   end;
 
   TMetal = class(TMaterial)
@@ -53,30 +55,39 @@ type
 implementation
 
 uses
-  Math, uMathUtils, uSamplingUtils;
+  SysUtils, Math, uMathUtils, uSamplingUtils;
 
 const
   cPrecisionDelta = 1e-4;
 
 { TLambertian }
-constructor TLambertian.Create(const anAlbedo: TColorVec);
+constructor TLambertian.Create(const anAlbedo: TTexture; OwnTexture: Boolean = True);
 begin
   FAlbedo := anAlbedo;
+end;
+
+destructor TLambertian.Destroy;
+begin
+  if FOwnTexture then
+    FreeAndNil(FAlbedo);
+  inherited;
 end;
 
 function TLambertian.Scatter(const AOrigin, AIncident, ANormal: TVec3F;
   out Scattered: TRay; out Attenuation: TColorVec): Boolean;
 var
   Normal: TVec3F;
+  Point: TVec3F;
 begin
   {if AIncident * ANormal > 0 then
     Normal := -ANormal
   else}
     Normal := ANormal;
+  Point := AOrigin;
 
   Scattered.Origin := AOrigin + Normal * cPrecisionDelta;
   Scattered.Direction := RandomOnUnitHemisphere.Rotate(Normal);
-  Attenuation := Albedo;
+  Attenuation := Albedo.Value(0, 0, Point);
   Result := True;
 end;
 

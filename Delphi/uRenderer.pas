@@ -98,6 +98,7 @@ end;
 function TRenderer.GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
 var
   Hit: TRayHit;
+  Point, Normal: TVec3F;
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
@@ -110,7 +111,9 @@ begin
   Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
-    if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
+    Point := ARay.At(Hit.Distance);
+    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+    if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
     begin
       Scattered.Time := ARay.Time;
       Result := Attenuation * GetColor(Scattered, ADepth + 1);
@@ -131,10 +134,15 @@ function TRenderer.GetNormalColor(const ARay: TRay): TColorVec;
 
 var
   Hit: TRayHit;
+  Point, Normal: TVec3F;
 begin
   Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
-    Result := Vec2Color(Hit.Normal)
+  begin
+    Point := ARay.At(Hit.Distance);
+    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+    Result := Vec2Color(Normal);
+  end
   else
     Result := ColorVec(0.0, 0.0, 0.0);
 end;
@@ -151,6 +159,7 @@ function TRenderer.GetDepthColor(const ARay: TRay; ADepth: Integer): TColorVec;
 
 var
   Hit: TRayHit;
+  Point, Normal: TVec3F;
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
@@ -163,7 +172,9 @@ begin
   Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
-    if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
+    Point := ARay.At(Hit.Distance);
+    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+    if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
     begin
       Scattered.Time := ARay.Time;
       Result := GetDepthColor(Scattered, ADepth + 1);
@@ -184,6 +195,7 @@ function TRenderer.GetScatteredAtDepth(const ARay: TRay; ADepth, ATargetDepth: I
 
 var
   Hit: TRayHit;
+  Point, Normal: TVec3F;
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
@@ -196,7 +208,9 @@ begin
   Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
-    if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
+    Point := ARay.At(Hit.Distance);
+    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+    if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
       if ADepth <> ATargetDepth then
       begin
         Scattered.Time := ARay.Time;
@@ -214,6 +228,7 @@ end;
 function TRenderer.GetColorAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
 var
   Hit: TRayHit;
+  Point, Normal: TVec3F;
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
@@ -226,7 +241,9 @@ begin
   Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
-    if Hit.Material.Scatter(Hit.Point, ARay.Direction, Hit.Normal, Scattered, Attenuation) then
+    Point := ARay.At(Hit.Distance);
+    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+    if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
       if ADepth <> ATargetDepth then
       begin
         Scattered.Time := ARay.Time;
