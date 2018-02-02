@@ -3,7 +3,7 @@ unit uImage2D;
 interface
 
 uses
-  Vcl.Graphics;
+  Vcl.Graphics, uColor;
 
 type
   TImage2D = class (TObject)
@@ -15,6 +15,7 @@ type
 
     function GetPixel(X, Y: Integer): Cardinal;
     procedure SetPixel(X, Y: Integer; Value: Cardinal);
+
   public
     constructor Create(AWidth, AHeight: Integer);
     destructor Destroy; override;
@@ -24,6 +25,31 @@ type
     property Width: Integer read FWidth;
     property Height: Integer read FHeight;
     property Pixel[X, Y: Integer]: Cardinal read GetPixel write SetPixel; default;
+  end;
+
+  TAccumulationBuffer2D = class (TObject)
+  private
+    FWidth, FHeight: Integer;
+    FData: array of TColorVec;
+    FCount: array of Integer;
+
+    function GetIndex(X, Y: Integer): Integer;
+    function ValidIndex(Idx: Integer): Boolean;
+
+  public
+    constructor Create(AWidth, AHeight: Integer);
+    destructor Destroy; override;
+
+    function Copy(): TAccumulationBuffer2D;
+
+    function GetAsImage(Gamma: Single): TImage2D;
+    function GetAsBitmap(Gamma: Single): TBitmap;
+
+    procedure AddColor(X, Y: Integer; const Color: TColorVec; Count: Integer);
+    procedure Clear;
+
+    property Width: Integer read FWidth;
+    property Height: Integer read FHeight;
   end;
 
 implementation
@@ -81,6 +107,101 @@ begin
       Inc(PInteger(Line));
     end;
   end;
+end;
+
+{ TAccumulationBuffer2D }
+constructor TAccumulationBuffer2D.Create(AWidth, AHeight: Integer);
+begin
+  inherited Create;
+  FWidth := AWidth;
+  FHeight := AHeight;
+  SetLength(FData, Width * Height);
+  SetLength(FCount, Width * Height);
+end;
+
+destructor TAccumulationBuffer2D.Destroy;
+begin
+  inherited;
+end;
+
+function TAccumulationBuffer2D.GetIndex(X, Y: Integer): Integer;
+begin
+  Result := Y * Width + X;
+end;
+
+function TAccumulationBuffer2D.ValidIndex(Idx: Integer): Boolean;
+begin
+  Result := (Idx >= 0) and (Idx < Width * Height)
+end;
+
+function TAccumulationBuffer2D.Copy(): TAccumulationBuffer2D;
+begin
+  Result := TAccumulationBuffer2D.Create(Width, Height);
+  Move(FData[0], Result.FData[0], Width * Height * SizeOf(TColorVec));
+  Move(FCount[0], Result.FCount[0], Width * Height * SizeOf(Integer));
+end;
+
+function TAccumulationBuffer2D.GetAsImage(Gamma: Single): TImage2D;
+var
+  I, X, Y: Integer;
+  Color: TColorVec;
+begin
+  Result := TImage2D.Create(Width, Height);
+  for Y := 0 to Height - 1 do
+    for X := 0 to Width - 1 do
+    begin
+      I := GetIndex(X, Y);
+      if FCount[I] > 0 then
+        Color := FData[I] / FCount[I]
+      else
+        Color.Create(0, 0, 0);
+
+      Result.Pixel[X, Y] := GammaCorrection(Color, Gamma).GetFlat;
+    end;
+end;
+
+function TAccumulationBuffer2D.GetAsBitmap(Gamma: Single): TBitmap;
+var
+  I, X, Y: Integer;
+  Color: TColorVec;
+  Line: Pointer;
+begin
+  Result := TBitmap.Create;
+  Result.SetSize(Width, Height);
+  Result.PixelFormat := pf32bit;
+  for Y := 0 to Height - 1 do
+  begin
+    Line := Result.ScanLine[Y];
+    for X := 0 to Width - 1 do
+    begin
+      I := GetIndex(X, Y);
+      if FCount[I] > 0 then
+        Color := FData[I] / FCount[I]
+      else
+        Color.Create(0, 0, 0);
+
+      PInteger(Line)^ := GammaCorrection(Color, Gamma).GetFlat;
+      Inc(PInteger(Line));
+    end;
+  end;
+end;
+
+procedure TAccumulationBuffer2D.AddColor(X, Y: Integer; const Color: TColorVec; Count: Integer);
+var
+  Idx: Integer;
+begin
+  Idx := GetIndex(X, Y);
+  if ValidIndex(Idx) then
+  begin
+    FData[Idx] := FData[Idx] + Color;
+    FCount[Idx] := FCount[Idx] + Count;
+  end;
+end;
+
+procedure TAccumulationBuffer2D.Clear;
+begin
+  FillChar(FData, Length(FData) * SizeOf(TColorVec), 0);
+  FillChar(FCount, Length(FCount) * SizeOf(Integer), 0);
 end;
 
 end.

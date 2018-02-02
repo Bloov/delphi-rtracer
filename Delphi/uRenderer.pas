@@ -3,23 +3,103 @@ unit uRenderer;
 interface
 
 uses
-  uImage2D, uVectors, uRay, uColor, uScene, uCamera;
+  Vcl.Graphics, uImage2D, uVectors, uRay, uColor, uScene, uCamera,
+  OtlParallel, OtlCommon, OtlSync, OtlTask, OtlTaskControl;
 
 type
-  TRenderer = class
+  TRenderTarget = (rtColor, rtNormalColor, rtDepth, rtColorAtDepth, rtScatteredAtDepth);
+
+  TRenderOptions = class
   private
+    FRenderTarget: TRenderTarget;
+    FDepthLimit: Integer;
+    FTargetDepth: Integer;
+
+    FGamma: Single;
+    FWidth, FHeight: Integer;
+    FSPP: Integer;
+
+    FUseBlocks: Boolean;
+    FBlockWidth, FBlockHeight: Integer;
+    FBlockSPP: Integer;
+  public
+    constructor Create;
+
+    function Copy(): TRenderOptions;
+    procedure CopyFrom(AFrom: TRenderOptions);
+
+    procedure SetToDefault;
+
+    property RenderTarget: TRenderTarget read FRenderTarget write FRenderTarget;
+    property DepthLimit: Integer read FDepthLimit write FDepthLimit;
+    property TargetDepth: Integer read FTargetDepth write FTargetDepth;
+    property Gamma: Single read FGamma write FGamma;
+    property Width: Integer read FWidth write FWidth;
+    property Height: Integer read FHeight write FHeight;
+    property SamplesPerPixel: Integer read FSPP write FSPP;
+    property UseBlocks: Boolean read FUseBlocks write FUseBlocks;
+    property BlockWidth: Integer read FBlockWidth write FBlockWidth;
+    property BlockHeight: Integer read FBlockHeight write FBlockHeight;
+    property BlockSamplesPerPixel: Integer read FBlockSPP write FBlockSPP;
+  end;
+
+  TRenderStatistics = class
+  private
+    FEmitedRays: Int64;
+    FTotalTime: Single; // in millisecons
+  public
+    property EmitedRays: Int64 read FEmitedRays;
+    property TotalTime: Single read FTotalTime;
+  end;
+
+  TRenderProgressCallback = reference to procedure(ARes: TBitmap; AStat: TRenderStatistics);
+  TRenderFinishedCallback = reference to procedure(ARes: TBitmap; AStat: TRenderStatistics);
+
+  TRenderer = class
+  private type
+    TRenderWork = class
+    public
+      Target: TAccumulationBuffer2D;
+      Semaphore: THandle;
+      BlockX_Id, BlockY_Id: Integer;
+      BlockWidth, BlockHeight: Integer;
+      BlockSPP: Integer;
+
+      constructor Create(ATarget: TAccumulationBuffer2D; ASemaphore: THandle; AXId, AYId, AWidth, AHeight, ASPP: Integer);
+    end;
+
+  private
+    FOptions: TRenderOptions;
     FScene: TScene;
     FCamera: TCamera;
     FEmitedRays: Int64;
+    FStartTime, FEndTime: Int64;
 
+    FRenderTask: IOmniTaskControl;
+    FRenderWorker: IOmniBackgroundWorker;
+    FCancelToken: IOmniCancellationToken;
+
+    function GetOptions(): TRenderOptions;
+    function GetStatistics(): TRenderStatistics;
     function GetEmptyColor(const ARay: TRay; ADepth: Integer): TColorVec;
+
+    function DoRender(const ATask: IOmniTask; OnProgress: TRenderProgressCallback): TImage2D;
+    procedure DoRenderBlock(ATarget: TAccumulationBuffer2D;
+      BlockX, BlockY, BlockWidth, BlockHeight, BlockSPP: Integer);
+
+    procedure ProcessRenderWork(const AWorkItem: IOmniWorkItem);
+
   public
-    constructor Create(AScene: TScene);
+    constructor Create();
     destructor Destroy; override;
 
+    procedure SetScene(AScene: TScene);
     procedure SetCamera(ACamera: TCamera);
 
-    function Render(AWidth, AHeight, ASamplesPerPixel: Integer): TImage2D;
+    function Render(AOptions: TRenderOptions = nil): TImage2D;
+    function RenderAsync(AOptions: TRenderOptions;
+      OnProgress: TRenderProgressCallback; OnFinished: TRenderFinishedCallback): IOmniCancellationToken;
+    function IsRendering(): Boolean;
 
     function GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
     function GetNormalColor(const ARay: TRay): TColorVec;
@@ -27,6 +107,7 @@ type
     function GetScatteredAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
     function GetColorAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
 
+    property Options: TRenderOptions read GetOptions;
     property Scene: TScene read FScene;
     property Camera: TCamera read FCamera;
     property EmitedRays: Int64 read FEmitedRays;
@@ -35,24 +116,122 @@ type
 implementation
 
 uses
-  SysUtils, Math, uMathUtils, uHitable;
+  SysUtils, Math, Windows, uMathUtils, uHitable;
+
+{ TRenderOptions }
+constructor TRenderOptions.Create;
+begin
+  inherited Create;
+  SetToDefault;
+end;
+
+function TRenderOptions.Copy(): TRenderOptions;
+begin
+  Result := TRenderOptions.Create;
+  Result.RenderTarget := RenderTarget;
+  Result.DepthLimit := DepthLimit;
+  Result.TargetDepth := TargetDepth;
+  Result.Gamma := Gamma;
+  Result.Width := Width;
+  Result.Height := Height;
+  Result.SamplesPerPixel := SamplesPerPixel;
+  Result.UseBlocks := UseBlocks;
+  Result.BlockWidth := BlockWidth;
+  Result.BlockHeight := BlockHeight;
+  Result.BlockSamplesPerPixel := BlockSamplesPerPixel;
+end;
+
+procedure TRenderOptions.CopyFrom(AFrom: TRenderOptions);
+begin
+  if AFrom = nil then
+    Exit;
+
+  RenderTarget := AFrom.RenderTarget;
+  DepthLimit := AFrom.DepthLimit;
+  TargetDepth := AFrom.TargetDepth;
+  Gamma := AFrom.Gamma;
+  Width := AFrom.Width;
+  Height := AFrom.Height;
+  SamplesPerPixel := AFrom.SamplesPerPixel;
+  UseBlocks := AFrom.UseBlocks;
+  BlockWidth := AFrom.BlockWidth;
+  BlockHeight := AFrom.BlockHeight;
+  BlockSamplesPerPixel := AFrom.BlockSamplesPerPixel;
+end;
+
+procedure TRenderOptions.SetToDefault;
+begin
+  RenderTarget := rtColor;
+  DepthLimit := 50;
+  TargetDepth := 0;
+  Gamma := 2.0;
+  Width := 1024;
+  Height := 1024;
+  SamplesPerPixel := 10;
+  UseBlocks := True;
+  BlockWidth := 16;
+  BlockHeight := 16;
+  BlockSamplesPerPixel := 10;
+end;
+
+{ TRenderer.TRenderWork }
+constructor TRenderer.TRenderWork.Create(ATarget: TAccumulationBuffer2D; ASemaphore: THandle;
+  AXId, AYId, AWidth, AHeight, ASPP: Integer);
+begin
+  inherited Create;
+  Target := ATarget;
+  Semaphore := ASemaphore;
+  BlockX_Id := AXId;
+  BlockY_Id := AYId;
+  BlockWidth := AWidth;
+  BlockHeight := AHeight;
+  BlockSPP := ASPP;
+end;
 
 { TRenderer }
-constructor TRenderer.Create(AScene: TScene);
+constructor TRenderer.Create();
 begin
-  FScene := AScene;
+  inherited Create;
 end;
 
 destructor TRenderer.Destroy;
 begin
   FreeAndNil(FCamera);
   FreeAndNil(FScene);
+  FreeAndNil(FOptions);
   inherited;
+end;
+
+function TRenderer.GetOptions(): TRenderOptions;
+begin
+  if FOptions = nil then
+    FOptions := TRenderOptions.Create;
+  Result := FOptions;
+end;
+
+function TRenderer.GetStatistics(): TRenderStatistics;
+var
+  Freq: Int64;
+begin
+  Result := TRenderStatistics.Create;
+  Result.FEmitedRays := FEmitedRays;
+  QueryPerformanceFrequency(Freq);
+  if (Freq <> 0) and (FEndTime <> 0) then
+    Result.FTotalTime := 1000 * (FEndTime - FStartTime) / Freq;
 end;
 
 function TRenderer.GetEmptyColor(const ARay: TRay; ADepth: Integer): TColorVec;
 begin
   Result := ColorVec(1.0, 1.0, 1.0).Lerp(ColorVec(0.5, 0.7, 1.0), 0.5 * (ARay.Direction.Y + 1));
+end;
+
+procedure TRenderer.SetScene(AScene: TScene);
+begin
+  if AScene = FScene then
+    Exit;
+
+  FreeAndNil(FScene);
+  FScene := AScene;
 end;
 
 procedure TRenderer.SetCamera(ACamera: TCamera);
@@ -64,35 +243,198 @@ begin
   FCamera := ACamera;
 end;
 
-function TRenderer.Render(AWidth, AHeight, ASamplesPerPixel: Integer): TImage2D;
+function TRenderer.IsRendering(): Boolean;
+begin
+  Result := (FRenderTask <> nil);
+end;
+
+function TRenderer.Render(AOptions: TRenderOptions): TImage2D;
+begin
+  if AOptions <> nil then
+    Options.CopyFrom(AOptions);
+
+  FCancelToken := CreateOmniCancellationToken;
+  Result := DoRender(nil, nil);
+  FCancelToken := nil;
+end;
+
+function TRenderer.RenderAsync(AOptions: TRenderOptions;
+  OnProgress: TRenderProgressCallback; OnFinished: TRenderFinishedCallback): IOmniCancellationToken;
+begin
+  if IsRendering then
+    Exit(nil);
+  if AOptions <> nil then
+    Options.CopyFrom(AOptions);
+
+  FCancelToken := CreateOmniCancellationToken;
+  FRenderTask := CreateTask(
+    procedure(const ATask: IOmniTask)
+    var
+      Res: TImage2D;
+      Wait: IOmniWaitableValue;
+    begin
+      Res := DoRender(ATask, OnProgress);
+      try
+        Wait := CreateWaitableValue;
+        ATask.Invoke(
+          procedure
+          begin
+            if Assigned(OnFinished) then
+              OnFinished(Res.GetAsBitmap, GetStatistics);
+            Wait.Signal;
+          end);
+        Wait.WaitFor;
+      finally
+        FreeAndNil(Res);
+      end;
+    end)
+  .MsgWait
+  .OnTerminated(
+    procedure
+    begin
+      FRenderTask := nil;
+      FCancelToken := nil;
+    end)
+  .Run;
+
+  Result := FCancelToken;
+end;
+
+function TRenderer.DoRender(const ATask: IOmniTask; OnProgress: TRenderProgressCallback): TImage2D;
 var
-  X, Y, Sample: Integer;
+  Target: TAccumulationBuffer2D;
+  XCount, YCount: Integer;
+  CurWidth, CurHeight: Integer;
+  CurSamples, Samples: Integer;
+  NumX, NumY: Integer;
+  WorkItem: IOmniWorkItem;
+  SemHandle: THandle;
+begin
+  Target := TAccumulationBuffer2D.Create(Options.Width, Options.Height);
+  try
+    Camera.SetupView(Options.Width, Options.Height);
+
+    XCount := 1;
+    YCount := 1;
+    if Options.UseBlocks then
+    begin
+      XCount := Options.Width div Options.BlockWidth;
+      YCount := Options.Height div Options.BlockHeight;
+      if Options.Width mod Options.BlockWidth <> 0 then
+        Inc(XCount);
+      if Options.Height mod Options.BlockHeight <> 0 then
+        Inc(YCount);
+    end;
+
+    FRenderWorker := Parallel.BackgroundWorker;
+    FRenderWorker.NumTasks(System.CPUCount).{StopOn(FCancelToken).}Execute(ProcessRenderWork);
+    FEmitedRays := 0;
+    QueryPerformanceCounter(FStartTime);
+    Samples := Options.SamplesPerPixel;
+    while Samples > 0 do
+    begin
+      CurSamples := Samples;
+      if Options.UseBlocks then
+        CurSamples := Min(Samples, Options.BlockSamplesPerPixel);
+
+      SemHandle := CreateSemaphore(nil, XCount * YCount, 0, '');
+      for NumX := 0 to XCount - 1 do
+      begin
+        if FCancelToken.IsSignalled then
+          Break;
+
+        for NumY := 0 to YCount - 1 do
+        begin
+          if FCancelToken.IsSignalled then
+            Break;
+
+          CurWidth := Options.Width;
+          CurHeight := Options.Height;
+          if Options.UseBlocks then
+          begin
+            if (NumX < Options.Width div Options.BlockWidth) then
+              CurWidth := Options.BlockWidth
+            else
+              CurWidth := Min(Options.BlockWidth, Options.Width - Options.BlockWidth * (Options.Width div Options.BlockWidth));
+            if (NumY < Options.Height div Options.BlockHeight) then
+              CurHeight := Options.BlockHeight
+            else
+              CurHeight := Min(Options.BlockHeight, Options.Height - Options.BlockHeight * (Options.Height div Options.BlockHeight));
+          end;
+
+          WorkItem := FRenderWorker.CreateWorkItem(TRenderWork.Create(Target, SemHandle, NumX, NumY, CurWidth, CurHeight, CurSamples));
+          FRenderWorker.Schedule(WorkItem);
+        end;
+      end;
+      // TODO sync here!!!
+      WaitForSingleObject(SemHandle, INFINITE);
+      CloseHandle(SemHandle);
+
+      Samples := Samples - CurSamples;
+    end;
+    FRenderWorker.Terminate(INFINITE);
+    FRenderWorker := nil;
+
+    QueryPerformanceCounter(FEndTime);
+    Result := Target.GetAsImage(Options.Gamma);
+  finally
+    FreeAndNil(Target);
+  end;
+end;
+
+procedure TRenderer.ProcessRenderWork(const AWorkItem: IOmniWorkItem);
+var
+  Work: TRenderWork;
+begin
+  Work := AWorkItem.Data.AsObject as TRenderWork;
+  DoRenderBlock(Work.Target, Work.BlockX_Id, Work.BlockY_Id, Work.BlockWidth, Work.BlockHeight, Work.BlockSPP);
+  ReleaseSemaphore(Work.Semaphore, 1, nil);
+end;
+
+procedure TRenderer.DoRenderBlock(ATarget: TAccumulationBuffer2D;
+  BlockX, BlockY, BlockWidth, BlockHeight, BlockSPP: Integer);
+var
+  X, Y, ShiftX, ShiftY: Integer;
+  Sample: Integer;
   U, V: Single;
   Ray: TRay;
   Color: TColorVec;
 begin
-  Result := TImage2D.Create(AWidth, AHeight);
-  Camera.SetupView(AWidth, AHeight);
+  ShiftX := BlockX * Options.BlockWidth;
+  ShiftY := BlockY * Options.BlockHeight;
+  for Y := 0 to BlockHeight - 1 do
+  begin
+    if FCancelToken.IsSignalled then
+      Break;
 
-  FEmitedRays := 0;
-  for Y := 0 to AHeight - 1 do
-    for X := 0 to AWidth - 1 do
+    for X := 0 to BlockWidth - 1 do
     begin
+      if FCancelToken.IsSignalled then
+        Break;
+
       Color := ColorVec(0.0, 0.0, 0.0);
-      for Sample := 1 to ASamplesPerPixel do
+      for Sample := 1 to BlockSPP do
       begin
-        U := (X + RandomF) / AWidth;
-        V := (Y + RandomF) / AHeight;
+        U := (ShiftX + X + RandomF) / ATarget.Width;
+        V := (ShiftY + Y + RandomF) / ATarget.Height;
         Ray := Camera.GetRay(U, V);
-        Color := Color + GetColor(Ray, 0);
-        //Color := Color + GetNormalColor(Ray);
-        //Color := Color + GetDepthColor(Ray, 0);
-        //Color := Color + GetScatteredAtDepth(Ray, 0, 2);
-        //Color := Color + GetColorAtDepth(Ray, 0, 10);
+        AtomicIncrement(FEmitedRays, 1);
+        case Options.RenderTarget of
+          rtColor:
+            Color := Color + GetColor(Ray, 0);
+          rtNormalColor:
+            Color := Color + GetNormalColor(Ray);
+          rtDepth:
+            Color := Color + GetDepthColor(Ray, 0);
+          rtColorAtDepth:
+            Color := Color + GetColorAtDepth(Ray, 0, Options.TargetDepth);
+          rtScatteredAtDepth:
+            Color := Color + GetScatteredAtDepth(Ray, 0, Options.TargetDepth);
+        end;
       end;
-      Color := Color / ASamplesPerPixel;
-      Result[X, Y] := GammaCorrection(Color, 2).GetFlat;
+      ATarget.AddColor(ShiftX + X, ShiftY + Y, Color, BlockSPP);
     end;
+  end;
 end;
 
 function TRenderer.GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
@@ -108,7 +450,6 @@ begin
     Exit;
   end;
 
-  Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     Point := ARay.At(Hit.Distance);
@@ -136,7 +477,6 @@ var
   Hit: TRayHit;
   Point, Normal: TVec3F;
 begin
-  Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     Point := ARay.At(Hit.Distance);
@@ -169,7 +509,6 @@ begin
     Exit;
   end;
 
-  Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     Point := ARay.At(Hit.Distance);
@@ -205,7 +544,6 @@ begin
     Exit;
   end;
 
-  Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     Point := ARay.At(Hit.Distance);
@@ -238,7 +576,6 @@ begin
     Exit;
   end;
 
-  Inc(FEmitedRays);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     Point := ARay.At(Hit.Distance);
@@ -262,3 +599,4 @@ begin
 end;
 
 end.
+

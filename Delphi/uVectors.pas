@@ -99,9 +99,9 @@ uses
   Math, uMathUtils;
 
 var
-  {Spacer0: Integer;
+  Spacer0: Integer;
   Spacer1: Integer;
-  Spacer2: Integer;}
+  //Spacer2: Integer;
   // Apply spacers for adjust Vectors align by 16 byte
   Vec3Mask: TVec3F;
   XUnit: TVec3F;
@@ -714,9 +714,9 @@ begin
 end;
 
 initialization
-  {Spacer0 := 0;
+  Spacer0 := 0;
   Spacer1 := 0;
-  Spacer2 := 0;}
+  //Spacer2 := 0;
 
   PCardinal(Pointer(@Vec3Mask.Arr[0]))^ := $FFFFFFFF;
   PCardinal(Pointer(@Vec3Mask.Arr[1]))^ := $FFFFFFFF;

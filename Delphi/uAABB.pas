@@ -28,9 +28,9 @@ uses
   Math, uMathUtils;
 
 var
-  {Spacer0: Integer;
-  Spacer1: Integer;
-  Spacer2: Integer;}
+  Spacer0: Integer;
+  //Spacer1: Integer;
+  //Spacer2: Integer;
   // Apply spacers for adjust Vectors align by 16 byte
   VecInf: TVec3F;
   VecNegInf: TVec3F;
@@ -140,9 +140,9 @@ begin
 end;
 
 initialization
-  {Spacer0 := 0;
-  Spacer1 := 0;
-  Spacer2 := 0;}
+  Spacer0 := 0;
+  //Spacer1 := 0;
+  //Spacer2 := 0;
   VecInf := Vec3F(Infinity, Infinity, Infinity);
   VecNegInf := Vec3F(NegInfinity, NegInfinity, NegInfinity);
 end.

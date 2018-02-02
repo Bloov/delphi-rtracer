@@ -17,7 +17,8 @@ uses
   uMaterial in 'uMaterial.pas',
   uAABB in 'uAABB.pas',
   uBVH in 'uBVH.pas',
-  uTexture in 'uTexture.pas';
+  uTexture in 'uTexture.pas',
+  uRenderSetup in 'uRenderSetup.pas' {SetupRender};
 
 {$R *.res}
 
@@ -25,5 +26,6 @@ begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(TMainForm, MainForm);
+  Application.CreateForm(TSetupRender, SetupRender);
   Application.Run;
 end.

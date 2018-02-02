@@ -21,7 +21,7 @@ type
     function GetFlat(): Cardinal;
 
     case Boolean of
-      True: (Arr: array [0..2] of Single);
+      True: (Arr: array [0..3] of Single);
       False: (R, G, B: Single);
   end;
 
