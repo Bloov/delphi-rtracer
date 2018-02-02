@@ -8,6 +8,8 @@ __recovery
 *.dproj.local
 *.groupproj
 *.groupproj.local
+*.spider
+*.exe
 Images/Bugs/*.png
 Images/Bugs/BVHBug_200rpp_2.jpg
 Images/Bugs/BVHBug_200rpp_3.jpg
@@ -25,3 +27,5 @@ Images/Renders/IsItCorrectFrensel.png
 Images/Renders/IsItCorrectFrensel.jpg
 Images/Renders/IsItCorrectFrensel_1500rpp.png
 Images/Renders/ApertureCamera_500rpp.png
+Delphi/Win32/
+Delphi/Win64/
