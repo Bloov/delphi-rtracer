@@ -149,6 +149,7 @@
             <Form>SetupRender</Form>
             <FormType>dfm</FormType>
         </DCCReference>
+        <DCCReference Include="uBenchmarks.pas"/>
         <None Include="uMathUtils.inc"/>
         <None Include="uDynArrays.inc"/>
         <BuildConfiguration Include="Release">

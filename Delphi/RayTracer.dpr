@@ -18,7 +18,8 @@ uses
   uAABB in 'uAABB.pas',
   uBVH in 'uBVH.pas',
   uTexture in 'uTexture.pas',
-  uRenderSetup in 'uRenderSetup.pas' {SetupRender};
+  uRenderSetup in 'uRenderSetup.pas' {SetupRender},
+  uBenchmarks in 'uBenchmarks.pas';
 
 {$R *.res}
 

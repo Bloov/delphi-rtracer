@@ -12,7 +12,7 @@ type
     pControls: TPanel;
     pRender: TPanel;
     imgRender: TImage;
-    btnRender: TButton;
+    btnRenderControl: TButton;
     Label1: TLabel;
     lblRenderTime: TLabel;
     dlgSaveImage: TSaveDialog;
@@ -30,6 +30,7 @@ type
     btnSetupScene: TButton;
     cbUseViewportSize: TCheckBox;
     procedure btnRenderClick(Sender: TObject);
+    procedure btnCancelClick(Sender: TObject);
     procedure btnSaveImageClick(Sender: TObject);
     procedure btnBenchmarkCameraClick(Sender: TObject);
     procedure btnClearTextClick(Sender: TObject);
@@ -43,8 +44,8 @@ type
     FRenderOptions: TRenderOptions;
     FCancelToken: IOmniCancellationToken;
 
-    procedure MakeTestScene(ARenderer: TRenderer);
-    procedure MakeRandomSpheresScene(ARenderer: TRenderer);
+    procedure MakeTestScene(ARenderer: TRenderer; ASeed: Integer);
+    procedure MakeRandomSpheresScene(ARenderer: TRenderer; ASeed: Integer);
   public
     destructor Destroy; override;
 
@@ -63,13 +64,11 @@ uses
   VCL.Imaging.PngImage, Math, uRenderSetup,
   uMathUtils, uAABB, uSamplingUtils,
   uScene, uCamera, uHitable, uRay,
-  uMaterial, uColor, uTexture,
+  uMaterial, uColor, uTexture, uBenchmarks,
   OtlParallel, OtlCommon;
 
 destructor TMainForm.Destroy;
 begin
-  FreeAndNil(FRenderOptions);
-  FreeAndNil(FGlobalRenderer);
   inherited;
 end;
 
@@ -83,12 +82,16 @@ end;
 
 procedure TMainForm.BeforeDestruction;
 begin
+  FreeAndNil(FRenderOptions);
+  FreeAndNil(FGlobalRenderer);
 end;
 
-procedure TMainForm.MakeTestScene(ARenderer: TRenderer);
+procedure TMainForm.MakeTestScene(ARenderer: TRenderer; ASeed: Integer);
 var
   Checker: TTexture;
 begin
+  RandSeed := ASeed;
+
   //ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(3, 3, 2), Vec3F(0, 0, -1), Vec3F(0, 1, 0), 45, 0.0));
   ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 35, 0.05));
 
@@ -108,7 +111,7 @@ begin
   //ARenderer.Scene.BuildBVH(ARenderer.Camera.Time0, ARenderer.Camera.Time1);
 end;
 
-procedure TMainForm.MakeRandomSpheresScene(ARenderer: TRenderer);
+procedure TMainForm.MakeRandomSpheresScene(ARenderer: TRenderer; ASeed: Integer);
 const
   cLambertProb = 0.75;
   cMetalProb = 0.90;
@@ -118,6 +121,8 @@ var
   Center: TVec3F;
   Checker: TTexture;
 begin
+  RandSeed := ASeed;
+
   ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 30, 0.05, 10));
   ARenderer.Camera.SetupFrameTime(0, 1);
 
@@ -152,69 +157,14 @@ begin
 end;
 
 procedure TMainForm.btnBenchmarkAABBClick(Sender: TObject);
-const
-  cTestRays = 16 * 1024;
-  cTestAABB = 4 * 1024;
 var
-  TotalHits, TotalAsmTime, TotalNativeTime: Single;
+  TotalHits, TotalAsm, TotalNative: Single;
 begin
   btnBenchmarkAABB.Enabled := False;
   Async(
     procedure
-    var
-      I, J: Integer;
-      Camera: TPerspectiveCamera;
-      TestRays: array of TRay;
-      TestAABB: array of TAABB;
-      MinP, MaxP, Diff: TVec3F;
-      MinD, MaxD: Single;
-      StartTime, EndTime, Freq: Int64;
     begin
-      Camera := TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 45, 0.05, 10);
-      try
-        Camera.SetupView(1024, 1024);
-        RandSeed := 123456;
-
-        TotalHits := cTestRays * (1.0 * cTestAABB);
-        SetLength(TestRays, cTestRays);
-        for I := 0 to cTestRays - 1 do
-          TestRays[I] := Camera.GetRay(RandomF, RandomF);
-
-        SetLength(TestAABB, cTestAABB);
-        for I := 0 to cTestAABB - 1 do
-        begin
-          MinP := Vec3F(0.1, 0.1, 0.1) + 0.8 * Vec3F(RandomF, RandomF, RandomF);
-          Diff := Vec3F(1.0, 1.0, 1.0) - MinP;
-          MaxP := MinP + Diff.CMul(Vec3F(0.1 + 0.9 * RandomF, 0.1 + 0.9 * RandomF, 0.1 + 0.9 * RandomF));
-          TestAABB[I] := TAABB.Create(MinP, MaxP);
-        end;
-
-        QueryPerformanceCounter(StartTime);
-          for I := 0 to cTestAABB - 1 do
-            for J := 0 to cTestRays - 1 do
-            begin
-              MinD := 0;
-              MaxD := MaxSingle;
-              TestAABB[I].Hit{Native}(TestRays[J], MinD, MaxD);
-            end;
-        QueryPerformanceCounter(EndTime);
-        QueryPerformanceFrequency(Freq);
-        TotalAsmTime := (EndTime - StartTime) / Freq;
-
-        QueryPerformanceCounter(StartTime);
-          for I := 0 to cTestAABB - 1 do
-            for J := 0 to cTestRays - 1 do
-            begin
-              MinD := 0;
-              MaxD := MaxSingle;
-              TestAABB[I].HitNative(TestRays[J], MinD, MaxD);
-            end;
-        QueryPerformanceCounter(EndTime);
-        QueryPerformanceFrequency(Freq);
-        TotalNativeTime := (EndTime - StartTime) / Freq;
-      finally
-        FreeAndNil(Camera);
-      end;
+      BenchmarkAABB(TotalHits, TotalAsm, TotalNative);
     end)
   .Await(
     procedure
@@ -222,54 +172,25 @@ begin
       btnBenchmarkAABB.Enabled := True;
 
       lbText.Items.Add('AABB performance:');
-      lbText.Items.Add(Format('  total time %.3f seconds', [TotalAsmTime]));
-      lbText.Items.Add(Format('  %.3f MHits per second', [TotalHits / (TotalAsmTime * 1e6)]));
+      lbText.Items.Add(Format('  total time %.3f seconds', [TotalAsm]));
+      lbText.Items.Add(Format('  %.3f MHits per second', [TotalHits / (TotalAsm * 1e6)]));
 
 
       lbText.Items.Add('Native AABB performance:');
-      lbText.Items.Add(Format('  total time %.3f seconds', [TotalNativeTime]));
-      lbText.Items.Add(Format('  %.3f MHits per second', [TotalHits / (TotalNativeTime * 1e6)]));
+      lbText.Items.Add(Format('  total time %.3f seconds', [TotalNative]));
+      lbText.Items.Add(Format('  %.3f MHits per second', [TotalHits / (TotalNative * 1e6)]));
     end);
 end;
 
 procedure TMainForm.btnBenchmarkCameraClick(Sender: TObject);
-const
-  cViewSize = 1024;
-  cInvSize: Single = 1 / cViewSize;
-  cSPP = 10;
 var
   TotalRays, TotalTime: Single;
 begin
   btnBenchmarkCamera.Enabled := False;
   Async(
     procedure
-    var
-      Camera: TPerspectiveCamera;
-      StartTime, EndTime, Freq: Int64;
-      X, Y, S: Integer;
-      U, V: Single;
-      Ray: TRay;
     begin
-      Camera := TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 45, 0.05, 10);
-      try
-        Camera.SetupView(cViewSize, cViewSize);
-        QueryPerformanceCounter(StartTime);
-          for Y := 0 to cViewSize - 1 do
-            for X := 0 to cViewSize - 1 do
-            begin
-              U := X * cInvSize;
-              V := Y * cInvSize;
-              for S := 1 to cSPP do
-                Ray := Camera.GetRay(U, V);
-            end;
-        QueryPerformanceCounter(EndTime);
-        QueryPerformanceFrequency(Freq);
-
-        TotalTime := (EndTime - StartTime) / Freq;
-        TotalRays := 1024 * 1024 * cSPP;
-      finally
-        FreeAndNil(Camera);
-      end;
+      BenchmarkCamera(TotalRays, TotalTime);
     end)
   .Await(
     procedure
@@ -281,56 +202,14 @@ begin
 end;
 
 procedure TMainForm.btnBenchmarkHitClick(Sender: TObject);
-const
-  cTestRays = 8 * 1024;
-  cTestSpheres = 8 * 1024;
 var
   TotalHits, TotalTime: Single;
 begin
   btnBenchmarkHit.Enabled := False;
   Async(
     procedure
-    var
-      I, J: Integer;
-      TestSpheres: array of THitable;
-      TestRays: array of TRay;
-      Origin: TVec3F;
-      Hit: TRayHit;
-      MinD, MaxD: Single;
-      StartTime, EndTime, Freq: Int64;
     begin
-      RandSeed := 123456;
-
-      SetLength(TestSpheres, cTestSpheres);
-      for I := 0 to cTestSpheres - 1 do
-      begin
-        Origin := RandomInUnitSphere * 3;
-        if RandomF > 0.8 then
-          TestSpheres[I] := TMovingSphere.Create(Origin, Origin - Vec3F(1, 1, 1), 1, 0, 1, TMetal.Create(ColorVec(100, 100, 100)))
-        else
-          TestSpheres[I] := TSphere.Create(Origin, 1, TMetal.Create(ColorVec(100, 100, 100)));
-      end;
-
-      SetLength(TestRays, cTestRays);
-      for I := 0 to cTestRays - 1 do
-      begin
-        Origin := RandomOnUnitSphere * 10;
-        TestRays[I] := TRay.Create(Origin, Vec3F(0, 0, 0) - Origin, RandomF);
-      end;
-
-      QueryPerformanceCounter(StartTime);
-        for I := 0 to cTestRays - 1 do
-          for J := 0 to cTestSpheres - 1 do
-          begin
-            MinD := 0;
-            MaxD := MaxSingle;
-            TestSpheres[J].Hit{Native}(TestRays[I], MinD, MaxD, Hit);
-          end;
-      QueryPerformanceCounter(EndTime);
-      QueryPerformanceFrequency(Freq);
-
-      TotalTime := (EndTime - StartTime) / Freq;
-      TotalHits := cTestRays * cTestSpheres;
+      BenchmarkHit(TotalHits, TotalTime);
     end)
   .Await(
     procedure
@@ -343,63 +222,15 @@ begin
 end;
 
 procedure TMainForm.btnBenchmarkRotateClick(Sender: TObject);
-const
-  cTestVecs = 8 * 1024;
 var
-  TotalRotates, TotalAsmTime, TotalNativeTime: Single;
+  TotalRotates, TotalAsm, TotalNative: Single;
   Success: Boolean;
 begin
   btnBenchmarkRotate.Enabled := False;
   Async(
     procedure
-    var
-      I, J: Integer;
-      Rot, RotN, Diff: TVec3F;
-
-      TestVecs: array of TVec3F;
-      StartTime, EndTime, Freq: Int64;
     begin
-      RandSeed := 123456;
-      SetLength(TestVecs, cTestVecs);
-      for I := 0 to cTestVecs - 1 do
-        TestVecs[I] := RandomOnUnitHemisphere;
-      TotalRotates := cTestVecs * (cTestVecs - 1) / 2;
-
-      QueryPerformanceCounter(StartTime);
-        for I := 0 to cTestVecs - 2 do
-          for J := I + 1 to cTestVecs - 1 do
-            TestVecs[I].Rotate(TestVecs[J]);
-      QueryPerformanceCounter(EndTime);
-      QueryPerformanceFrequency(Freq);
-      TotalAsmTime := (EndTime - StartTime) / Freq;
-
-
-      QueryPerformanceCounter(StartTime);
-        for I := 0 to cTestVecs - 2 do
-          for J := I + 1 to cTestVecs - 1 do
-            TestVecs[I].RotateNative(TestVecs[J]);
-      QueryPerformanceCounter(EndTime);
-      QueryPerformanceFrequency(Freq);
-      TotalNativeTime := (EndTime - StartTime) / Freq;
-
-      Success := True;
-      for I := 0 to cTestVecs - 2 do
-      begin
-        if not Success then
-          Break;
-
-        for J := I + 1 to cTestVecs - 1 do
-        begin
-          RotN := TestVecs[I].RotateNative(TestVecs[J]);
-          Rot := TestVecs[I].Rotate(TestVecs[J]);
-          Diff := Rot - RotN;
-          if Diff.Length > 1e-5 then
-          begin
-            Success := False;
-            Break;
-          end;
-        end;
-      end;
+      BenchmarkRotate(TotalRotates, TotalAsm, TotalNative, Success);
     end)
   .Await(
     procedure
@@ -407,12 +238,12 @@ begin
       btnBenchmarkRotate.Enabled := True;
 
       lbText.Items.Add('Rotate performance:');
-      lbText.Items.Add(Format('  total time %.3f seconds', [TotalAsmTime]));
-      lbText.Items.Add(Format('  %.3f MRot per second', [TotalRotates / (TotalAsmTime * 1e6)]));
+      lbText.Items.Add(Format('  total time %.3f seconds', [TotalAsm]));
+      lbText.Items.Add(Format('  %.3f MRot per second', [TotalRotates / (TotalAsm * 1e6)]));
 
       lbText.Items.Add('Native rotate performance:');
-      lbText.Items.Add(Format('  total time %.3f seconds', [TotalNativeTime]));
-      lbText.Items.Add(Format('  %.3f MRot per second', [TotalRotates / (TotalNativeTime * 1e6)]));
+      lbText.Items.Add(Format('  total time %.3f seconds', [TotalNative]));
+      lbText.Items.Add(Format('  %.3f MRot per second', [TotalRotates / (TotalNative * 1e6)]));
 
       lbText.Items.Add(Format('Same results: %s', [BoolToStr(Success, True)]));
     end);
@@ -423,7 +254,6 @@ const
   cSPP = 10;
 var
   Renderer: TRenderer;
-  Options: TRenderOptions;
   Image: TImage2D;
   StartTime, EndTime, Freq: Int64;
   TotalRays, TotalTime: Single;
@@ -432,13 +262,12 @@ begin
   Renderer := TRenderer.Create();
   try
     Renderer.SetScene(TScene.Create);
+    MakeRandomSpheresScene(Renderer, 117);
+
     Renderer.Options.CopyFrom(FRenderOptions);
     Renderer.Options.Width := 256;
     Renderer.Options.Height := 256;
     Renderer.Options.SamplesPerPixel := cSPP;
-
-    RandSeed := 117;
-    MakeRandomSpheresScene(Renderer);
 
     QueryPerformanceCounter(StartTime);
       Image := Renderer.Render();
@@ -468,53 +297,50 @@ const
   cDivRes = 1;
 var
   Options: TRenderOptions;
-  TargetWidth, TargetHeight: Integer;
 begin
-  if FGlobalRenderer.IsRendering then
-  begin
-    //btnRender.Enabled := False;
-    FCancelToken.Signal;
-  end
-  else
-  begin
-    RandSeed := 117;
-    FGlobalRenderer.SetScene(TScene.Create);
-    MakeRandomSpheresScene(FGlobalRenderer);
-    //MakeTestScene(FGlobalRenderer);
+  FGlobalRenderer.SetScene(TScene.Create);
+  MakeRandomSpheresScene(FGlobalRenderer, 117);
+  //MakeTestScene(FGlobalRenderer, 117);
 
-    Options := TRenderOptions.Create;
-    try
-      Options.CopyFrom(FRenderOptions);
-      if cbUseViewportSize.Checked then
-      begin
-        Options.Width := imgRender.ClientWidth div cDivRes;
-        Options.Height := imgRender.ClientHeight div cDivRes;
-      end;
-
-      //btnRender.Enabled := False;
-      FCancelToken := FGlobalRenderer.RenderAsync(Options,
-        procedure(ARes: TBitmap; AStat: TRenderStatistics)
-        begin
-          //imgRender.Picture.Bitmap := ARes
-          lblRenderTime.Caption := Format('%.3f', [AStat.TotalTime / 1000]);
-          lblRenderPerformance.Caption := Format('%.3f', [AStat.EmitedRays / (AStat.TotalTime * 1e3)]);
-          AStat.Free;
-        end,
-        procedure(ARes: TBitmap; AStat: TRenderStatistics)
-        begin
-          imgRender.Picture.Bitmap := ARes;
-          lblRenderTime.Caption := Format('%.3f', [AStat.TotalTime / 1000]);
-          lblRenderPerformance.Caption := Format('%.3f', [AStat.EmitedRays / (AStat.TotalTime * 1e3)]);
-          AStat.Free;
-
-          btnRender.Caption := 'Render';
-          //btnRender.Enabled := True;
-        end);
-    finally
-      FreeAndNil(Options);
+  Options := TRenderOptions.Create;
+  try
+    Options.CopyFrom(FRenderOptions);
+    if cbUseViewportSize.Checked then
+    begin
+      Options.Width := imgRender.ClientWidth div cDivRes;
+      Options.Height := imgRender.ClientHeight div cDivRes;
     end;
-    btnRender.Caption := 'Cancel Render';
+
+    FCancelToken := FGlobalRenderer.RenderAsync(Options,
+      procedure(ARes: TBitmap; AStat: TRenderStatistics)
+      begin
+        //imgRender.Picture.Bitmap := ARes
+        lblRenderTime.Caption := Format('%.3f', [AStat.TotalTime / 1000]);
+        lblRenderPerformance.Caption := Format('%.3f', [AStat.EmitedRays / (AStat.TotalTime * 1e3)]);
+        AStat.Free;
+      end,
+      procedure(ARes: TBitmap; AStat: TRenderStatistics)
+      begin
+        imgRender.Picture.Bitmap := ARes;
+        lblRenderTime.Caption := Format('%.3f', [AStat.TotalTime / 1000]);
+        lblRenderPerformance.Caption := Format('%.3f', [AStat.EmitedRays / (AStat.TotalTime * 1e3)]);
+        AStat.Free;
+
+        btnRenderControl.Caption := 'Render';
+        btnRenderControl.OnClick := btnRenderClick;
+        //btnRenderControl.Enabled := True;
+      end);
+  finally
+    FreeAndNil(Options);
   end;
+  btnRenderControl.Caption := 'Cancel Render';
+  btnRenderControl.OnClick := btnCancelClick;
+end;
+
+procedure TMainForm.btnCancelClick(Sender: TObject);
+begin
+  //btnRenderControl.Enabled := False;
+  FCancelToken.Signal;
 end;
 
 procedure TMainForm.btnSaveImageClick(Sender: TObject);

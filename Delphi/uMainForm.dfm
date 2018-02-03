@@ -54,7 +54,7 @@ object MainForm: TMainForm
       Width = 3
       Height = 13
     end
-    object btnRender: TButton
+    object btnRenderControl: TButton
       Left = 8
       Top = 16
       Width = 113

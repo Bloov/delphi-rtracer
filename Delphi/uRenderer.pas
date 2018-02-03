@@ -74,6 +74,7 @@ type
     FCamera: TCamera;
     FEmitedRays: Int64;
     FStartTime, FEndTime: Int64;
+    FIsRendering: Boolean;
 
     FRenderTask: IOmniTaskControl;
     FRenderWorker: IOmniBackgroundWorker;
@@ -245,17 +246,19 @@ end;
 
 function TRenderer.IsRendering(): Boolean;
 begin
-  Result := (FRenderTask <> nil);
+  Result := FIsRendering;
 end;
 
 function TRenderer.Render(AOptions: TRenderOptions): TImage2D;
 begin
+  if IsRendering then
+    Exit(nil);
   if AOptions <> nil then
     Options.CopyFrom(AOptions);
 
-  FCancelToken := CreateOmniCancellationToken;
+  FIsRendering := True;
   Result := DoRender(nil, nil);
-  FCancelToken := nil;
+  FIsRendering := False;
 end;
 
 function TRenderer.RenderAsync(AOptions: TRenderOptions;
@@ -266,6 +269,7 @@ begin
   if AOptions <> nil then
     Options.CopyFrom(AOptions);
 
+  FIsRendering := True;
   FCancelToken := CreateOmniCancellationToken;
   FRenderTask := CreateTask(
     procedure(const ATask: IOmniTask)
@@ -294,6 +298,7 @@ begin
     begin
       FRenderTask := nil;
       FCancelToken := nil;
+      FIsRendering := False;
     end)
   .Run;
 
@@ -308,7 +313,7 @@ var
   CurSamples, Samples: Integer;
   NumX, NumY: Integer;
   WorkItem: IOmniWorkItem;
-  SemHandle: THandle;
+  sHandle: THandle;
 begin
   Target := TAccumulationBuffer2D.Create(Options.Width, Options.Height);
   try
@@ -337,15 +342,15 @@ begin
       if Options.UseBlocks then
         CurSamples := Min(Samples, Options.BlockSamplesPerPixel);
 
-      SemHandle := CreateSemaphore(nil, XCount * YCount, 0, '');
+      sHandle := CreateSemaphore(nil, XCount * YCount, 0, '');
       for NumX := 0 to XCount - 1 do
       begin
-        if FCancelToken.IsSignalled then
+        if Assigned(FCancelToken) and FCancelToken.IsSignalled then
           Break;
 
         for NumY := 0 to YCount - 1 do
         begin
-          if FCancelToken.IsSignalled then
+          if Assigned(FCancelToken) and FCancelToken.IsSignalled then
             Break;
 
           CurWidth := Options.Width;
@@ -362,13 +367,13 @@ begin
               CurHeight := Min(Options.BlockHeight, Options.Height - Options.BlockHeight * (Options.Height div Options.BlockHeight));
           end;
 
-          WorkItem := FRenderWorker.CreateWorkItem(TRenderWork.Create(Target, SemHandle, NumX, NumY, CurWidth, CurHeight, CurSamples));
+          WorkItem := FRenderWorker.CreateWorkItem(TRenderWork.Create(Target, sHandle, NumX, NumY, CurWidth, CurHeight, CurSamples));
           FRenderWorker.Schedule(WorkItem);
         end;
       end;
-      // TODO sync here!!!
-      WaitForSingleObject(SemHandle, INFINITE);
-      CloseHandle(SemHandle);
+      // TODO: Try to sync by locking regions in target buffer
+      WaitForSingleObject(sHandle, INFINITE);
+      CloseHandle(sHandle);
 
       Samples := Samples - CurSamples;
     end;
@@ -404,12 +409,12 @@ begin
   ShiftY := BlockY * Options.BlockHeight;
   for Y := 0 to BlockHeight - 1 do
   begin
-    if FCancelToken.IsSignalled then
+    if Assigned(FCancelToken) and FCancelToken.IsSignalled then
       Break;
 
     for X := 0 to BlockWidth - 1 do
     begin
-      if FCancelToken.IsSignalled then
+      if Assigned(FCancelToken) and FCancelToken.IsSignalled then
         Break;
 
       Color := ColorVec(0.0, 0.0, 0.0);
