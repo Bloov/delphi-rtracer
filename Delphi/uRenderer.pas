@@ -47,25 +47,27 @@ type
   private
     FEmitedRays: Int64;
     FTotalTime: Single; // in millisecons
+    FProgress: Single;
   public
     property EmitedRays: Int64 read FEmitedRays;
     property TotalTime: Single read FTotalTime;
+    property Progress: Single read FProgress;
   end;
 
-  TRenderProgressCallback = reference to procedure(ARes: TBitmap; AStat: TRenderStatistics);
-  TRenderFinishedCallback = reference to procedure(ARes: TBitmap; AStat: TRenderStatistics);
+  TRenderProgressCallback = reference to procedure(ARes: TBitmap; AStats: TRenderStatistics);
+  TRenderFinishedCallback = reference to procedure(ARes: TBitmap; AStats: TRenderStatistics);
 
   TRenderer = class
   private type
     TRenderWork = class
     public
       Target: TAccumulationBuffer2D;
-      Semaphore: THandle;
+      CountBlocks: IOmniResourceCount;
       BlockX_Id, BlockY_Id: Integer;
       BlockWidth, BlockHeight: Integer;
       BlockSPP: Integer;
 
-      constructor Create(ATarget: TAccumulationBuffer2D; ASemaphore: THandle; AXId, AYId, AWidth, AHeight, ASPP: Integer);
+      constructor Create(ATarget: TAccumulationBuffer2D; ACount: IOmniResourceCount; AXId, AYId, AWidth, AHeight, ASPP: Integer);
     end;
 
   private
@@ -81,7 +83,6 @@ type
     FCancelToken: IOmniCancellationToken;
 
     function GetOptions(): TRenderOptions;
-    function GetStatistics(): TRenderStatistics;
     function GetEmptyColor(const ARay: TRay; ADepth: Integer): TColorVec;
 
     function DoRender(const ATask: IOmniTask; OnProgress: TRenderProgressCallback): TImage2D;
@@ -101,6 +102,9 @@ type
     function RenderAsync(AOptions: TRenderOptions;
       OnProgress: TRenderProgressCallback; OnFinished: TRenderFinishedCallback): IOmniCancellationToken;
     function IsRendering(): Boolean;
+    procedure CancelRender();
+
+    function GetStatistics(AProgress: Single = 1.0): TRenderStatistics;
 
     function GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
     function GetNormalColor(const ARay: TRay): TColorVec;
@@ -111,7 +115,6 @@ type
     property Options: TRenderOptions read GetOptions;
     property Scene: TScene read FScene;
     property Camera: TCamera read FCamera;
-    property EmitedRays: Int64 read FEmitedRays;
   end;
 
 implementation
@@ -168,20 +171,20 @@ begin
   Gamma := 2.0;
   Width := 1024;
   Height := 1024;
-  SamplesPerPixel := 10;
+  SamplesPerPixel := 32;
   UseBlocks := True;
-  BlockWidth := 16;
-  BlockHeight := 16;
-  BlockSamplesPerPixel := 10;
+  BlockWidth := 64;
+  BlockHeight := 64;
+  BlockSamplesPerPixel := 8;
 end;
 
 { TRenderer.TRenderWork }
-constructor TRenderer.TRenderWork.Create(ATarget: TAccumulationBuffer2D; ASemaphore: THandle;
+constructor TRenderer.TRenderWork.Create(ATarget: TAccumulationBuffer2D; ACount: IOmniResourceCount;
   AXId, AYId, AWidth, AHeight, ASPP: Integer);
 begin
   inherited Create;
   Target := ATarget;
-  Semaphore := ASemaphore;
+  CountBlocks := ACount;
   BlockX_Id := AXId;
   BlockY_Id := AYId;
   BlockWidth := AWidth;
@@ -210,12 +213,13 @@ begin
   Result := FOptions;
 end;
 
-function TRenderer.GetStatistics(): TRenderStatistics;
+function TRenderer.GetStatistics(AProgress: Single = 1.0): TRenderStatistics;
 var
   Freq: Int64;
 begin
   Result := TRenderStatistics.Create;
   Result.FEmitedRays := FEmitedRays;
+  Result.FProgress := AProgress;
   QueryPerformanceFrequency(Freq);
   if (Freq <> 0) and (FEndTime <> 0) then
     Result.FTotalTime := 1000 * (FEndTime - FStartTime) / Freq;
@@ -249,6 +253,12 @@ begin
   Result := FIsRendering;
 end;
 
+procedure TRenderer.CancelRender();
+begin
+  if Assigned(FCancelToken) then
+    FCancelToken.Signal;
+end;
+
 function TRenderer.Render(AOptions: TRenderOptions): TImage2D;
 begin
   if IsRendering then
@@ -257,8 +267,11 @@ begin
     Options.CopyFrom(AOptions);
 
   FIsRendering := True;
-  Result := DoRender(nil, nil);
-  FIsRendering := False;
+  try
+    Result := DoRender(nil, nil);
+  finally
+    FIsRendering := False;
+  end;
 end;
 
 function TRenderer.RenderAsync(AOptions: TRenderOptions;
@@ -275,19 +288,21 @@ begin
     procedure(const ATask: IOmniTask)
     var
       Res: TImage2D;
-      Wait: IOmniWaitableValue;
+      ResBitmap: Vcl.Graphics.TBitmap;
+      ResStats: TRenderStatistics;
     begin
       Res := DoRender(ATask, OnProgress);
       try
-        Wait := CreateWaitableValue;
-        ATask.Invoke(
-          procedure
-          begin
-            if Assigned(OnFinished) then
-              OnFinished(Res.GetAsBitmap, GetStatistics);
-            Wait.Signal;
-          end);
-        Wait.WaitFor;
+        if Assigned(OnFinished) then
+        begin
+          ResBitmap := Res.GetAsBitmap;
+          ResStats := GetStatistics;
+          ATask.Invoke(
+            procedure
+            begin
+              OnFinished(ResBitmap, ResStats);
+            end);
+        end;
       finally
         FreeAndNil(Res);
       end;
@@ -308,12 +323,15 @@ end;
 function TRenderer.DoRender(const ATask: IOmniTask; OnProgress: TRenderProgressCallback): TImage2D;
 var
   Target: TAccumulationBuffer2D;
+  ProgressBitmap: Vcl.Graphics.TBitmap;
+  ProgressStats: TRenderStatistics;
   XCount, YCount: Integer;
   CurWidth, CurHeight: Integer;
-  CurSamples, Samples: Integer;
+  CurSamples, Samples, TotalSamples: Integer;
   NumX, NumY: Integer;
   WorkItem: IOmniWorkItem;
-  sHandle: THandle;
+  Wait: IOmniWaitableValue;
+  CountBlocks: IOmniResourceCount;
 begin
   Target := TAccumulationBuffer2D.Create(Options.Width, Options.Height);
   try
@@ -333,16 +351,18 @@ begin
 
     FRenderWorker := Parallel.BackgroundWorker;
     FRenderWorker.NumTasks(System.CPUCount).{StopOn(FCancelToken).}Execute(ProcessRenderWork);
+
+    TotalSamples := Options.SamplesPerPixel;
+    Samples := TotalSamples;
     FEmitedRays := 0;
     QueryPerformanceCounter(FStartTime);
-    Samples := Options.SamplesPerPixel;
     while Samples > 0 do
     begin
       CurSamples := Samples;
       if Options.UseBlocks then
         CurSamples := Min(Samples, Options.BlockSamplesPerPixel);
 
-      sHandle := CreateSemaphore(nil, XCount * YCount, 0, '');
+      CountBlocks := CreateResourceCount(XCount * YCount);
       for NumX := 0 to XCount - 1 do
       begin
         if Assigned(FCancelToken) and FCancelToken.IsSignalled then
@@ -367,15 +387,33 @@ begin
               CurHeight := Min(Options.BlockHeight, Options.Height - Options.BlockHeight * (Options.Height div Options.BlockHeight));
           end;
 
-          WorkItem := FRenderWorker.CreateWorkItem(TRenderWork.Create(Target, sHandle, NumX, NumY, CurWidth, CurHeight, CurSamples));
+          WorkItem := FRenderWorker.CreateWorkItem(TRenderWork.Create(Target, CountBlocks, NumX, NumY, CurWidth, CurHeight, CurSamples));
           FRenderWorker.Schedule(WorkItem);
         end;
       end;
-      // TODO: Try to sync by locking regions in target buffer
-      WaitForSingleObject(sHandle, INFINITE);
-      CloseHandle(sHandle);
+      if Assigned(FCancelToken) and FCancelToken.IsSignalled then
+        Break;
 
+      // TODO: Try to sync by locking regions in target buffer
+      WaitForSingleObject(CountBlocks.Handle, INFINITE);
       Samples := Samples - CurSamples;
+      if Samples = 0 then
+        Break;
+
+      QueryPerformanceCounter(FEndTime);
+      if Assigned(OnProgress) then
+      begin
+        Wait := CreateWaitableValue;
+        ProgressBitmap := Target.GetAsBitmap(Options.Gamma);
+        ProgressStats := GetStatistics((TotalSamples - Samples) / IfThen(TotalSamples = 0, 1, TotalSamples));
+        ATask.Invoke(
+          procedure
+          begin
+            OnProgress(ProgressBitmap, ProgressStats);
+            Wait.Signal;
+          end);
+        Wait.WaitFor;
+      end;
     end;
     FRenderWorker.Terminate(INFINITE);
     FRenderWorker := nil;
@@ -393,7 +431,7 @@ var
 begin
   Work := AWorkItem.Data.AsObject as TRenderWork;
   DoRenderBlock(Work.Target, Work.BlockX_Id, Work.BlockY_Id, Work.BlockWidth, Work.BlockHeight, Work.BlockSPP);
-  ReleaseSemaphore(Work.Semaphore, 1, nil);
+  Work.CountBlocks.Allocate;
 end;
 
 procedure TRenderer.DoRenderBlock(ATarget: TAccumulationBuffer2D;

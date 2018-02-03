@@ -29,6 +29,8 @@ type
     btnSetupRender: TButton;
     btnSetupScene: TButton;
     cbUseViewportSize: TCheckBox;
+    Label3: TLabel;
+    lblRenderProgress: TLabel;
     procedure btnRenderClick(Sender: TObject);
     procedure btnCancelClick(Sender: TObject);
     procedure btnSaveImageClick(Sender: TObject);
@@ -255,8 +257,7 @@ const
 var
   Renderer: TRenderer;
   Image: TImage2D;
-  StartTime, EndTime, Freq: Int64;
-  TotalRays, TotalTime: Single;
+  Stats: TRenderStatistics;
 begin
   Image := nil;
   Renderer := TRenderer.Create();
@@ -269,16 +270,12 @@ begin
     Renderer.Options.Height := 256;
     Renderer.Options.SamplesPerPixel := cSPP;
 
-    QueryPerformanceCounter(StartTime);
-      Image := Renderer.Render();
-    QueryPerformanceCounter(EndTime);
-    QueryPerformanceFrequency(Freq);
+    Image := Renderer.Render;
 
-    TotalTime := (EndTime - StartTime) / Freq;
-    TotalRays := Renderer.EmitedRays;
+    Stats := Renderer.GetStatistics;
     lbText.Items.Add('Render performance:');
-    lbText.Items.Add(Format('  total time %.3f seconds', [TotalTime]));
-    lbText.Items.Add(Format('  %.3f MRays per second', [TotalRays / (TotalTime * 1e6)]));
+    lbText.Items.Add(Format('  total time %.3f seconds', [Stats.TotalTime / 1e3]));
+    lbText.Items.Add(Format('  %.3f MRays per second', [Stats.EmitedRays / (Stats.TotalTime * 1e3)]));
 
     imgRender.Picture.Bitmap := Image.GetAsBitmap;
   finally
@@ -298,6 +295,12 @@ const
 var
   Options: TRenderOptions;
 begin
+  lblRenderProgress.Caption := '';
+  lblRenderTime.Caption := '';
+  lblRenderPerformance.Caption := '';
+  btnRenderControl.Caption := 'Cancel Render';
+  btnRenderControl.OnClick := btnCancelClick;
+
   FGlobalRenderer.SetScene(TScene.Create);
   MakeRandomSpheresScene(FGlobalRenderer, 117);
   //MakeTestScene(FGlobalRenderer, 117);
@@ -312,19 +315,21 @@ begin
     end;
 
     FCancelToken := FGlobalRenderer.RenderAsync(Options,
-      procedure(ARes: TBitmap; AStat: TRenderStatistics)
-      begin
-        //imgRender.Picture.Bitmap := ARes
-        lblRenderTime.Caption := Format('%.3f', [AStat.TotalTime / 1000]);
-        lblRenderPerformance.Caption := Format('%.3f', [AStat.EmitedRays / (AStat.TotalTime * 1e3)]);
-        AStat.Free;
-      end,
-      procedure(ARes: TBitmap; AStat: TRenderStatistics)
+      procedure(ARes: TBitmap; AStats: TRenderStatistics)
       begin
         imgRender.Picture.Bitmap := ARes;
-        lblRenderTime.Caption := Format('%.3f', [AStat.TotalTime / 1000]);
-        lblRenderPerformance.Caption := Format('%.3f', [AStat.EmitedRays / (AStat.TotalTime * 1e3)]);
-        AStat.Free;
+        lblRenderProgress.Caption := Format('%.1f %%', [AStats.Progress * 100]);
+        lblRenderTime.Caption := Format('%.3f', [AStats.TotalTime / 1000]);
+        lblRenderPerformance.Caption := Format('%.3f', [AStats.EmitedRays / (AStats.TotalTime * 1e3)]);
+        AStats.Free;
+      end,
+      procedure(ARes: TBitmap; AStats: TRenderStatistics)
+      begin
+        imgRender.Picture.Bitmap := ARes;
+        lblRenderProgress.Caption := Format('%.1f %%', [AStats.Progress * 100]);
+        lblRenderTime.Caption := Format('%.3f', [AStats.TotalTime / 1000]);
+        lblRenderPerformance.Caption := Format('%.3f', [AStats.EmitedRays / (AStats.TotalTime * 1e3)]);
+        AStats.Free;
 
         btnRenderControl.Caption := 'Render';
         btnRenderControl.OnClick := btnRenderClick;
@@ -333,14 +338,12 @@ begin
   finally
     FreeAndNil(Options);
   end;
-  btnRenderControl.Caption := 'Cancel Render';
-  btnRenderControl.OnClick := btnCancelClick;
 end;
 
 procedure TMainForm.btnCancelClick(Sender: TObject);
 begin
   //btnRenderControl.Enabled := False;
-  FCancelToken.Signal;
+  FGlobalRenderer.CancelRender;
 end;
 
 procedure TMainForm.btnSaveImageClick(Sender: TObject);

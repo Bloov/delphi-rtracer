@@ -25,32 +25,46 @@ object MainForm: TMainForm
     Align = alLeft
     Alignment = taLeftJustify
     TabOrder = 0
+    ExplicitLeft = -6
     DesignSize = (
       249
       571)
     object Label1: TLabel
       Left = 8
-      Top = 126
+      Top = 134
       Width = 91
       Height = 13
       Caption = 'Render Time (sec):'
     end
     object lblRenderTime: TLabel
       Left = 105
-      Top = 126
+      Top = 134
       Width = 3
       Height = 13
     end
     object Label2: TLabel
       Left = 8
-      Top = 145
+      Top = 153
       Width = 166
       Height = 13
       Caption = 'Render Performance (MRays/sec):'
     end
     object lblRenderPerformance: TLabel
       Left = 180
-      Top = 145
+      Top = 153
+      Width = 3
+      Height = 13
+    end
+    object Label3: TLabel
+      Left = 8
+      Top = 115
+      Width = 84
+      Height = 13
+      Caption = 'Render Progress:'
+    end
+    object lblRenderProgress: TLabel
+      Left = 98
+      Top = 115
       Width = 3
       Height = 13
     end
