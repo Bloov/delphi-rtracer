@@ -257,6 +257,7 @@ const
 var
   Renderer: TRenderer;
   Image: TImage2D;
+  Bitmap: TBitmap;
   Stats: TRenderStatistics;
 begin
   Image := nil;
@@ -277,8 +278,14 @@ begin
     lbText.Items.Add(Format('  total time %.3f seconds', [Stats.TotalTime / 1e3]));
     lbText.Items.Add(Format('  %.3f MRays per second', [Stats.EmitedRays / (Stats.TotalTime * 1e3)]));
 
-    imgRender.Picture.Bitmap := Image.GetAsBitmap;
+    Bitmap := Image.GetAsBitmap;
+    try
+      imgRender.Picture.Bitmap := Bitmap;
+    finally
+      FreeAndNil(Bitmap);
+    end;
   finally
+    FreeAndNil(Stats);
     FreeAndNil(Image);
     FreeAndNil(Renderer);
   end;
@@ -322,6 +329,7 @@ begin
         lblRenderTime.Caption := Format('%.3f', [AStats.TotalTime / 1000]);
         lblRenderPerformance.Caption := Format('%.3f', [AStats.EmitedRays / (AStats.TotalTime * 1e3)]);
         AStats.Free;
+        ARes.Free;
       end,
       procedure(ARes: TBitmap; AStats: TRenderStatistics)
       begin
@@ -330,6 +338,7 @@ begin
         lblRenderTime.Caption := Format('%.3f', [AStats.TotalTime / 1000]);
         lblRenderPerformance.Caption := Format('%.3f', [AStats.EmitedRays / (AStats.TotalTime * 1e3)]);
         AStats.Free;
+        ARes.Free;
 
         btnRenderControl.Caption := 'Render';
         btnRenderControl.OnClick := btnRenderClick;

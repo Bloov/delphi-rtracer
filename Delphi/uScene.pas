@@ -48,6 +48,7 @@ destructor TScene.Destroy;
 var
   I: Integer;
 begin
+  FreeAndNil(FBVH);
   for I := 0 to FCount - 1 do
     FreeAndNil(FItems[I]);
   inherited;

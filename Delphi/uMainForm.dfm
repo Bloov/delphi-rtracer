@@ -25,7 +25,6 @@ object MainForm: TMainForm
     Align = alLeft
     Alignment = taLeftJustify
     TabOrder = 0
-    ExplicitLeft = -6
     DesignSize = (
       249
       571)

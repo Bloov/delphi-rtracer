@@ -63,6 +63,7 @@ const
 { TLambertian }
 constructor TLambertian.Create(const anAlbedo: TTexture; OwnTexture: Boolean = True);
 begin
+  FOwnTexture := OwnTexture;
   FAlbedo := anAlbedo;
 end;
 

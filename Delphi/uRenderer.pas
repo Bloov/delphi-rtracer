@@ -429,6 +429,7 @@ procedure TRenderer.ProcessRenderWork(const AWorkItem: IOmniWorkItem);
 var
   Work: TRenderWork;
 begin
+  AWorkItem.Data.OwnsObject := True;
   Work := AWorkItem.Data.AsObject as TRenderWork;
   DoRenderBlock(Work.Target, Work.BlockX_Id, Work.BlockY_Id, Work.BlockWidth, Work.BlockHeight, Work.BlockSPP);
   Work.CountBlocks.Allocate;
