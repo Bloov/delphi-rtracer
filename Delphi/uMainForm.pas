@@ -48,6 +48,7 @@ type
 
     procedure MakeTestScene(ARenderer: TRenderer; ASeed: Integer);
     procedure MakeRandomSpheresScene(ARenderer: TRenderer; ASeed: Integer);
+    procedure MakeTestArtefactsScene(ARenderer: TRenderer; ASeed: Integer);
   public
     destructor Destroy; override;
 
@@ -84,6 +85,13 @@ end;
 
 procedure TMainForm.BeforeDestruction;
 begin
+  FGlobalRenderer.CancelRender;
+  while FGlobalRenderer.IsRendering do
+  begin
+    Sleep(10);
+    Application.ProcessMessages;
+  end;
+
   FreeAndNil(FRenderOptions);
   FreeAndNil(FGlobalRenderer);
 end;
@@ -153,6 +161,18 @@ begin
 
   ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 1, 0), 1, TDielectric.Create(1.5)));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(-4, 1, 0), 1, TLambertian.Create(TConstantTexture.Create(ColorVec(0.4, 0.2, 0.1)))));
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(4, 1, 0), 1, TMetal.Create(ColorVec(0.7, 0.6, 0.5), 0)));
+
+  ARenderer.Scene.BuildBVH(ARenderer.Camera.Time0, ARenderer.Camera.Time1);
+end;
+
+procedure TMainForm.MakeTestArtefactsScene(ARenderer: TRenderer; ASeed: Integer);
+begin
+  RandSeed := ASeed;
+
+  ARenderer.SetCamera(TPerspectiveCamera.Create(Vec3F(13, 2, 3), Vec3F(0, 0, 0), Vec3F(0, 1, 0), 30, 0.0, 10));
+
+  ARenderer.Scene.Add(TSphere.Create(Vec3F(0, 1, 0), 1, TDielectric.Create(1.5)));
   ARenderer.Scene.Add(TSphere.Create(Vec3F(4, 1, 0), 1, TMetal.Create(ColorVec(0.7, 0.6, 0.5), 0)));
 
   ARenderer.Scene.BuildBVH(ARenderer.Camera.Time0, ARenderer.Camera.Time1);
@@ -310,6 +330,7 @@ begin
 
   FGlobalRenderer.SetScene(TScene.Create);
   MakeRandomSpheresScene(FGlobalRenderer, 117);
+  //MakeTestArtefactsScene(FGlobalRenderer, 117);
   //MakeTestScene(FGlobalRenderer, 117);
 
   Options := TRenderOptions.Create;

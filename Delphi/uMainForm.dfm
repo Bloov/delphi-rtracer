@@ -15,6 +15,7 @@ object MainForm: TMainForm
   Font.Style = []
   OldCreateOrder = False
   Position = poScreenCenter
+  ExplicitHeight = 240
   PixelsPerInch = 96
   TextHeight = 13
   object pControls: TPanel

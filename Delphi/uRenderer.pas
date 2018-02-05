@@ -488,7 +488,7 @@ var
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth >= 50 then
+  if ADepth >= Options.DepthLimit then
   begin
     Result :=  ColorVec(0.0, 0.0, 0.0);
     Exit;
@@ -547,7 +547,7 @@ var
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth >= 50 then
+  if ADepth >= Options.DepthLimit then
   begin
     Result :=  Depth2Color(ADepth);
     Exit;
@@ -582,7 +582,7 @@ var
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth >= 50 then
+  if ADepth >= Options.DepthLimit then
   begin
     Result :=  ColorVec(0.0, 0.0, 0.0);
     Exit;

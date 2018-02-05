@@ -1,5 +1,7 @@
 unit uHitable;
 
+{$DEFINE HIT_USE_ASM}
+
 interface
 
 uses
@@ -37,7 +39,9 @@ type
     FRadius: Single;
     FNormalSign: Single;
 
+  {$IFDEF HIT_USE_ASM}
     function FastDisc(const ARay: TRay; var Dist: Single): Single;
+  {$ENDIF}
   public
     constructor Create(const ACenter: TVec3F; ARadius: Single; AMaterial: TMaterial);
 
@@ -56,7 +60,9 @@ type
     FRadius: Single;
     FNormalSign: Single;
 
+  {$IFDEF HIT_USE_ASM}
     function FastDisc(const ARay: TRay; const ACenter: TVec3F; var Dist: Single): Single;
+  {$ENDIF}
   public
     constructor Create(const ACenter0, ACenter1: TVec3F; ARadius: Single; ATime0, ATime1: Single; AMaterial: TMaterial);
 
@@ -104,65 +110,70 @@ begin
   FNormalSign := Sign(ARadius);
 end;
 
+{$IFDEF HIT_USE_ASM}
 function TSphere.FastDisc(const ARay: TRay; var Dist: Single): Single;
 asm
   movups xmm0, dqword ptr [Self + TSphere.FCenter];
   movss  xmm1, dword  ptr [Self + TSphere.FRadius];
   movups xmm2, dqword ptr [ARay + TRay.Origin];
   movups xmm3, dqword ptr [ARay + TRay.FDirection];
-  xorps  xmm6, xmm6;
-  // Zero in xmm6
+  xorps  xmm6, xmm6; // Zero in xmm6
 
-  subps  xmm0, xmm2;
-  // ToSphere = Center - Origin in xmm0
+  subps  xmm0, xmm2; // ToSphere = Center - Origin in xmm0
+
   movaps xmm4, xmm0;
-  dpps   xmm4, xmm3, 01110001b;
-  // B = ToSphere * Direction in xmm4
+  dpps   xmm4, xmm3, 01110001b; // B = ToSphere * Direction in xmm4
+
   dpps   xmm0, xmm0, 01110001b;
   mulss  xmm1, xmm1;
-  subss  xmm0, xmm1;
-  // C = ToSphere * ToSphere - Radius * Radius in xmm0
+  subss  xmm0, xmm1; // C = ToSphere * ToSphere - Radius * Radius in xmm0
+
   movaps xmm2, xmm4;
   mulss  xmm2, xmm2;
-  subss  xmm2, xmm0;
-  // Disc = B * B - C in xmm1
+  subss  xmm2, xmm0; // Disc = B * B - C in xmm2
+
 
   comiss xmm2, xmm6;
-  jbe    @return;
-  sqrtss xmm2, xmm2;
-  // Disc = Sqrt(Disc) if Disc > 0
+  jb     @return;    // if Disc >= 0 then
+  sqrtss xmm2, xmm2; // Disc = Sqrt(Disc)
 
   movaps xmm1, xmm4;
-  subss  xmm1, xmm2;
-  // Dist = B - Disc in xmm1
+  subss  xmm1, xmm2; // Dist = B - Disc in xmm1
+
   comiss xmm6, xmm1;
-  jbe    @return;
-  // if Dist < 0 then
+  jb     @return;    // if Dist < 0 then
   movaps xmm1, xmm4;
-  addss  xmm1, xmm2;
-  // Dist = B + Disc in xmm1
+  addss  xmm1, xmm2; // Dist = B + Disc in xmm1
 
 @return:
   movss  [Dist],   xmm1;
   movss  [Result], xmm2;
 end;
+{$ENDIF}
 
 function TSphere.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 var
-  {ToSphere: TVec3F;
-  B: Single;}
+{$IFNDEF HIT_USE_ASM}
+  ToSphere: TVec3F;
+  B: Single;
+{$ENDIF}
   Disc, Dist: Single;
 begin
+{$IFDEF HIT_USE_ASM}
   Disc := FastDisc(ARay, Dist);
-  {ToSphere := Center - ARay.Origin;
+{$ELSE}
+  ToSphere := Center - ARay.Origin;
   B := ToSphere * ARay.Direction;
-  Disc := B * B - ToSphere * ToSphere + Radius * Radius;}
+  Disc := B * B - ToSphere * ToSphere + Radius * Radius;
+{$ENDIF}
   if Disc >= 0 then
   begin
-    {Disc := Sqrt(Disc);
+  {$IFNDEF HIT_USE_ASM}
+    Disc := Sqrt(Disc);
     Dist := B - Disc;
     if Dist < 0 then
-      Dist := B + Disc;}
+      Dist := B + Disc;
+  {$ENDIF}
     if (AMinDist <= Dist) and (Dist <= AMaxDist) then
     begin
       Result := True;
@@ -209,68 +220,73 @@ begin
   Result := Center0 + ((ATime - FTime0) / (FTime1 - FTime0)) * (Center1 - Center0);
 end;
 
+{$IFDEF HIT_USE_ASM}
 function TMovingSphere.FastDisc(const ARay: TRay; const ACenter: TVec3F; var Dist: Single): Single;
 asm
   movups xmm0, [ACenter];
   movss  xmm1, dword  ptr [Self + TMovingSphere.FRadius];
   movups xmm2, dqword ptr [ARay + TRay.Origin];
   movups xmm3, dqword ptr [ARay + TRay.FDirection];
-  xorps  xmm6, xmm6;
-  // Zero in xmm6
+  xorps  xmm6, xmm6; // Zero in xmm6
 
-  subps  xmm0, xmm2;
-  // ToSphere = Center - Origin in xmm0
+
+  subps  xmm0, xmm2; // ToSphere = Center - Origin in xmm0
+
   movaps xmm4, xmm0;
-  dpps   xmm4, xmm3, 01110001b;
-  // B = ToSphere * Direction in xmm4
+  dpps   xmm4, xmm3, 01110001b; // B = ToSphere * Direction in xmm4
+
   dpps   xmm0, xmm0, 01110001b;
   mulss  xmm1, xmm1;
-  subss  xmm0, xmm1;
-  // C = ToSphere * ToSphere - Radius * Radius in xmm0
+  subss  xmm0, xmm1; // C = ToSphere * ToSphere - Radius * Radius in xmm0
+
   movaps xmm2, xmm4;
   mulss  xmm2, xmm2;
-  subss  xmm2, xmm0;
-  // Disc = B * B - C in xmm1
+  subss  xmm2, xmm0; // Disc = B * B - C in xmm1
 
   comiss xmm2, xmm6;
-  jbe    @return;
-  sqrtss xmm2, xmm2;
-  // Disc = Sqrt(Disc) if Disc > 0
+  jb     @return;    // if Disc >= 0 then
+  sqrtss xmm2, xmm2; // Disc = Sqrt(Disc) if Disc > 0
 
   movaps xmm1, xmm4;
-  subss  xmm1, xmm2;
-  // Dist = B - Disc in xmm1
+  subss  xmm1, xmm2; // Dist = B - Disc in xmm1
+
   comiss xmm6, xmm1;
-  jbe    @return;
-  // if Dist < 0 then
+  jb     @return;    // if Dist < 0 then
   movaps xmm1, xmm4;
-  addss  xmm1, xmm2;
-  // Dist = B + Disc in xmm1
+  addss  xmm1, xmm2; // Dist = B + Disc in xmm1
 
 @return:
   mov    eax, [Dist];
   movss  [eax], xmm1;
   movss  [Result], xmm2;
 end;
+{$ENDIF}
 
 function TMovingSphere.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 var
+{$IFNDEF HIT_USE_ASM}
+  ToSphere: TVec3F;
+  B: Single;
+{$ENDIF}
   Center: TVec3F;
-  {ToSphere: TVec3F;
-  B: Single;}
   Disc, Dist: Single;
 begin
   Center := CenterAt(ARay.Time);
+{$IFDEF HIT_USE_ASM}
   Disc := FastDisc(ARay, Center, Dist);
-  {ToSphere := Center - ARay.Origin;
+{$ELSE}
+  ToSphere := Center - ARay.Origin;
   B := ToSphere * ARay.Direction;
-  Disc := B * B - ToSphere * ToSphere + Radius * Radius;}
+  Disc := B * B - ToSphere * ToSphere + Radius * Radius;
+{$ENDIF}
   if Disc >= 0 then
   begin
-    {Disc := Sqrt(Disc);
+  {$IFNDEF HIT_USE_ASM}
+    Disc := Sqrt(Disc);
     Dist := B - Disc;
     if Dist < 0 then
-      Dist := B + Disc;}
+      Dist := B + Disc;
+  {$ENDIF}
     if (AMinDist <= Dist) and (Dist <= AMaxDist) then
     begin
       Result := True;
