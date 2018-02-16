@@ -30,12 +30,9 @@ uses
   Math, uMathUtils;
 
 var
-  Spacer0: Integer;
-  //Spacer1: Integer;
-  //Spacer2: Integer;
-  // Apply spacers for adjust Vectors align by 16 byte
-  VecInf: TVec3F;
-  VecNegInf: TVec3F;
+  VectorsMem, AlignedMem: Pointer;
+  VecInf: PVec3F;    // 0-base
+  VecNegInf: PVec3F; // +16 bytes
 
 { TAABB }
 constructor TAABB.Create(const A, B: TVec3F);
@@ -65,8 +62,9 @@ asm
   movups xmm1, dqword ptr [Self + TAABB.FMax];
   movups xmm2, dqword ptr [ARay + TRay.Origin];
   movups xmm3, dqword ptr [ARay + TRay.FInvDirection];
-  movups xmm6, [VecInf];
-  movups xmm7, [VecNegInf];
+  mov    ebx,  [AlignedMem];
+  movaps xmm6, [ebx];           // VecInf
+  movaps xmm7, [ebx + 16];      // VecNegInf
 
   subps  xmm0, xmm2;
   subps  xmm1, xmm2;
@@ -171,9 +169,17 @@ begin
 end;
 
 initialization
-  Spacer0 := 0;
-  //Spacer1 := 0;
-  //Spacer2 := 0;
-  VecInf := Vec3F(Infinity, Infinity, Infinity);
-  VecNegInf := Vec3F(NegInfinity, NegInfinity, NegInfinity);
+  VectorsMem := GetMemory(8 * SizeOf(TVec3F));
+  AlignedMem := Pointer(((NativeUInt(VectorsMem) + 16) div 16) * 16);
+
+  VecInf :=  PVec3F(NativeUInt(AlignedMem) + 0);
+  VecInf^ := Vec3F(Infinity, Infinity, Infinity);
+  VecInf.Arr[3] := 0;
+
+  VecNegInf := PVec3F(NativeUInt(AlignedMem) + 16);
+  VecNegInf^ := Vec3F(NegInfinity, NegInfinity, NegInfinity);
+  VecNegInf.Arr[3] := 0;
+
+finalization
+  FreeMemory(VectorsMem);
 end.

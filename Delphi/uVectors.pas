@@ -91,6 +91,7 @@ type
       True: (Arr: array [0..3] of Single);
       False: (X, Y, Z: Single);
   end;
+  PVec3F = ^TVec3F;
 
 function Vec2F(X, Y: Single): TVec2F; inline;
 function Vec3F(X, Y, Z: Single): TVec3F; inline;
@@ -101,15 +102,12 @@ uses
   Math, uMathUtils;
 
 var
-  Spacer0: Integer;
-  Spacer1: Integer;
-  //Spacer2: Integer;
-  // Apply spacers for adjust Vectors align by 16 byte
-  Vec3Mask: TVec3F;
-  XUnit: TVec3F;
-  YUnit: TVec3F;
-  ZUnit: TVec3F;
-  AllUnit: TVec3F;
+  VectorsMem, AlignedMem: Pointer;
+  Vec3Mask: PVec3F; // 0-base
+  XUnit: PVec3F;    // +16 bytes
+  ZUnit: PVec3F;    // +32 bytes
+  YUnit: PVec3F;    // +48 bytes
+  AllUnit: PVec3F;  // +64 bytes
 
 function Vec2F(X, Y: Single): TVec2F;
 begin
@@ -477,9 +475,10 @@ end;
 function TVec3F.Cross(const Vec: TVec3F): TVec3F;
 {$IFDEF USE_SSE}
 asm
+  mov    ebx,  [AlignedMem];
   movups xmm0, [Self];
   movups xmm1, [Vec];
-  movaps xmm7, [Vec3Mask];
+  movaps xmm7, [ebx]; // Vec3Mask
   andps  xmm0, xmm7;
   andps  xmm1, xmm7;
   movaps xmm2, xmm0;
@@ -602,9 +601,10 @@ const
 {$IFDEF USE_SSE}
 asm
   movups xmm0, [ANormal];
-  movaps xmm7, [Vec3Mask];
-  movaps xmm1, [XUnit];
-  movaps xmm2, [ZUnit];
+  mov    ebx,  [AlignedMem];
+  movaps xmm7, [ebx];      // Vec3Mask
+  movaps xmm1, [ebx + 16]; // XUnit
+  movaps xmm2, [ebx + 32]; // ZUnit
   andps  xmm0, xmm7;
 
   movaps  xmm3, xmm0;
@@ -796,25 +796,32 @@ begin
 end;
 
 initialization
-  Spacer0 := 0;
-  Spacer1 := 0;
-  //Spacer2 := 0;
+  VectorsMem := GetMemory(8 * SizeOf(TVec3F));
+  AlignedMem := Pointer(((NativeUInt(VectorsMem) + 16) div 16) * 16);
 
+  Vec3Mask := PVec3F(NativeUInt(AlignedMem) + 0);
   PCardinal(Pointer(@Vec3Mask.Arr[0]))^ := $FFFFFFFF;
   PCardinal(Pointer(@Vec3Mask.Arr[1]))^ := $FFFFFFFF;
   PCardinal(Pointer(@Vec3Mask.Arr[2]))^ := $FFFFFFFF;
   PCardinal(Pointer(@Vec3Mask.Arr[3]))^ := 0;
 
-  XUnit := Vec3F(1, 0, 0);
+  XUnit := PVec3F(NativeUInt(AlignedMem) + 16);
+  XUnit^ := Vec3F(1, 0, 0);
   XUnit.Arr[3] := 0;
 
-  YUnit := Vec3F(0, 1, 0);
+  YUnit := PVec3F(NativeUInt(AlignedMem) + 48);
+  YUnit^ := Vec3F(0, 1, 0);
   YUnit.Arr[3] := 0;
 
-  ZUnit := Vec3F(0, 0, 1);
+  ZUnit := PVec3F(NativeUInt(AlignedMem) + 32);
+  ZUnit^ := Vec3F(0, 0, 1);
   ZUnit.Arr[3] := 0;
 
-  AllUnit := Vec3F(1, 1, 1);
+  AllUnit := PVec3F(NativeUInt(AlignedMem) + 64);
+  AllUnit^ := Vec3F(1, 1, 1);
   AllUnit.Arr[3] := 0;
+
+finalization
+  FreeMemory(VectorsMem);
 end.
 
