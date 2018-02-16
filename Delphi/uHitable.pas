@@ -1,6 +1,6 @@
 unit uHitable;
 
-{$DEFINE HIT_USE_ASM}
+{$I defines.inc}
 
 interface
 
@@ -39,9 +39,8 @@ type
     FRadius: Single;
     FNormalSign: Single;
 
-  {$IFDEF HIT_USE_ASM}
+  protected
     function FastDisc(const ARay: TRay; var Dist: Single): Single;
-  {$ENDIF}
   public
     constructor Create(const ACenter: TVec3F; ARadius: Single; AMaterial: TMaterial);
 
@@ -60,9 +59,8 @@ type
     FRadius: Single;
     FNormalSign: Single;
 
-  {$IFDEF HIT_USE_ASM}
+  protected
     function FastDisc(const ARay: TRay; const ACenter: TVec3F; var Dist: Single): Single;
-  {$ENDIF}
   public
     constructor Create(const ACenter0, ACenter1: TVec3F; ARadius: Single; ATime0, ATime1: Single; AMaterial: TMaterial);
 
@@ -110,7 +108,6 @@ begin
   FNormalSign := Sign(ARadius);
 end;
 
-{$IFDEF HIT_USE_ASM}
 function TSphere.FastDisc(const ARay: TRay; var Dist: Single): Single;
 asm
   movups xmm0, dqword ptr [Self + TSphere.FCenter];
@@ -149,17 +146,16 @@ asm
   movss  [Dist],   xmm1;
   movss  [Result], xmm2;
 end;
-{$ENDIF}
 
 function TSphere.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 var
-{$IFNDEF HIT_USE_ASM}
+{$IFNDEF USE_SSE}
   ToSphere: TVec3F;
   B: Single;
 {$ENDIF}
   Disc, Dist: Single;
 begin
-{$IFDEF HIT_USE_ASM}
+{$IFDEF USE_SSE}
   Disc := FastDisc(ARay, Dist);
 {$ELSE}
   ToSphere := Center - ARay.Origin;
@@ -168,7 +164,7 @@ begin
 {$ENDIF}
   if Disc >= 0 then
   begin
-  {$IFNDEF HIT_USE_ASM}
+  {$IFNDEF USE_SSE}
     Disc := Sqrt(Disc);
     Dist := B - Disc;
     if Dist < 0 then
@@ -220,7 +216,6 @@ begin
   Result := Center0 + ((ATime - FTime0) / (FTime1 - FTime0)) * (Center1 - Center0);
 end;
 
-{$IFDEF HIT_USE_ASM}
 function TMovingSphere.FastDisc(const ARay: TRay; const ACenter: TVec3F; var Dist: Single): Single;
 asm
   movups xmm0, [ACenter];
@@ -228,7 +223,6 @@ asm
   movups xmm2, dqword ptr [ARay + TRay.Origin];
   movups xmm3, dqword ptr [ARay + TRay.FDirection];
   xorps  xmm6, xmm6; // Zero in xmm6
-
 
   subps  xmm0, xmm2; // ToSphere = Center - Origin in xmm0
 
@@ -260,11 +254,10 @@ asm
   movss  [eax], xmm1;
   movss  [Result], xmm2;
 end;
-{$ENDIF}
 
 function TMovingSphere.Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean;
 var
-{$IFNDEF HIT_USE_ASM}
+{$IFNDEF USE_SSE}
   ToSphere: TVec3F;
   B: Single;
 {$ENDIF}
@@ -272,7 +265,7 @@ var
   Disc, Dist: Single;
 begin
   Center := CenterAt(ARay.Time);
-{$IFDEF HIT_USE_ASM}
+{$IFDEF USE_SSE}
   Disc := FastDisc(ARay, Center, Dist);
 {$ELSE}
   ToSphere := Center - ARay.Origin;
@@ -281,7 +274,7 @@ begin
 {$ENDIF}
   if Disc >= 0 then
   begin
-  {$IFNDEF HIT_USE_ASM}
+  {$IFNDEF USE_SSE}
     Disc := Sqrt(Disc);
     Dist := B - Disc;
     if Dist < 0 then

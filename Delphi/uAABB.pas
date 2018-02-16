@@ -1,5 +1,7 @@
 unit uAABB;
 
+{$I defines.inc}
+
 interface
 
 uses
@@ -15,7 +17,7 @@ type
     procedure ExpandWith(const Point: TVec3F); overload;
     procedure ExpandWith(const Other: TAABB); overload;
 
-    function Hit{Asm}(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
+    function Hit(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
     function HitNative(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
 
     property Min_: TVec3F read FMin;
@@ -56,7 +58,8 @@ end;
 
 // From here
 // http://www.flipcode.com/archives/SSE_RayBox_Intersection_Test.shtml
-function TAABB.Hit{Asm}(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
+function TAABB.Hit(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;
+{$IFDEF USE_SSE}
 asm
   movups xmm0, dqword ptr [Self + TAABB.FMin];
   movups xmm1, dqword ptr [Self + TAABB.FMax];
@@ -108,6 +111,34 @@ asm
   jbe    @return;
   or     al,  $01
 @return:
+{$ELSE}
+var
+  I: Integer;
+  invD: Single;
+  cMin, cMax: Single;
+begin
+  for I := 0 to 2 do
+    if ARay.Direction.Arr[I] <> 0 then
+    begin
+      invD := 1.0 / ARay.Direction.Arr[I];
+      cMin := invD * (FMin.Arr[I] - ARay.Origin.Arr[I]);
+      cMax := invD * (FMax.Arr[I] - ARay.Origin.Arr[I]);
+      if invD < 0 then
+        Swap(cMin, cMax);
+
+      MinDist := Max(MinDist, cMin);
+      MaxDist := Min(MaxDist, cMax);
+      // Some optimization here
+      // Be aware, results may differ from HitAsm
+      if MaxDist <= MinDist then
+        Exit(False);
+    end
+    else if (ARay.Origin.Arr[I] <= FMin.Arr[I]) or (ARay.Origin.Arr[I] >= FMax.Arr[I]) then
+      Exit(False);
+
+  // Uncomment here if turn off optimization above
+  Result := {(MaxDist > MinDist) and} (MaxDist > 0);
+{$ENDIF}
 end;
 
 function TAABB.HitNative(const ARay: TRay; var MinDist, MaxDist: Single): Boolean;

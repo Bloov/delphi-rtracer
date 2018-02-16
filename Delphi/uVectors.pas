@@ -1,5 +1,7 @@
 unit uVectors;
 
+{$I defines.inc}
+
 interface
 
 type
@@ -50,11 +52,11 @@ type
     class operator Positive(const Vec: TVec3F): TVec3F; inline;
     class operator Equal(const A, B: TVec3F): Boolean; inline;
     class operator NotEqual(const A, B: TVec3F): Boolean; inline;
-    class operator Add(const A, B: TVec3F): TVec3F; inline;
-    class operator Subtract(const A, B: TVec3F): TVec3F; inline;
-    class operator Multiply(const A: TVec3F; B: Single): TVec3F; overload; inline;
-    class operator Multiply(A: Single; const B: TVec3F): TVec3F; overload; inline;
-    class operator Multiply(const A, B: TVec3F): Single; overload; //inline;
+    class operator Add(const A, B: TVec3F): TVec3F; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    class operator Subtract(const A, B: TVec3F): TVec3F; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    class operator Multiply(const A: TVec3F; B: Single): TVec3F; overload; {$IFNDEF USE_SSE_ALLCASES}inline;{$ENDIF}
+    class operator Multiply(A: Single; const B: TVec3F): TVec3F; overload; {$IFNDEF USE_SSE_ALLCASES}inline;{$ENDIF}
+    class operator Multiply(const A, B: TVec3F): Single; overload; {$IFNDEF USE_SSE}inline;{$ENDIF}
     class operator Divide(const A: TVec3F; B: Single): TVec3F; overload; inline;
     class operator Divide(A: Single; const B: TVec3F): TVec3F; overload; inline;
 
@@ -65,20 +67,20 @@ type
     function CMax(const Vec: TVec3F): TVec3F;
 
     function Dot(const Vec: TVec3F): Single; inline;
-    function CrossAsm(const Vec: TVec3F): TVec3F;
-    function Cross{Native}(const Vec: TVec3F): TVec3F; inline;
+    function Cross(const Vec: TVec3F): TVec3F;
+    function CrossNative(const Vec: TVec3F): TVec3F; inline;
     function Projection(const Vec: TVec3F): TVec3F; inline;
-    function NormalizeAsm(): TVec3F; //inline;
-    function Normalize{Native}(): TVec3F; inline;
+    function Normalize(): TVec3F; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    function NormalizeNative(): TVec3F; inline;
     function Distance(const Vec: TVec3F): Single; inline;
     function Clip(ALength: Single): TVec3F;
     function Stretch(ALength: Single): TVec3F;
     function Lerp(const Target: TVec3F; Time: Single): TVec3F; inline;
-    function Rotate{Asm}(const ANormal: TVec3F): TVec3F;
+    function Rotate(const ANormal: TVec3F): TVec3F;
     function RotateNative(const ANormal: TVec3F): TVec3F;
 
-    function Length(): Single; inline;
-    function LengthSqr(): Single; inline;
+    function Length(): Single; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    function LengthSqr(): Single; {$IFNDEF USE_SSE}inline;{$ENDIF}
 
     function IsZero(): Boolean; inline;
     function IsAnyZero(): Boolean; inline;
@@ -332,43 +334,79 @@ begin
 end;
 
 class operator TVec3F.Add(const A, B: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [A];
+  movups xmm1, [B];
+  addps  xmm0, xmm1;
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := A.X + B.X;
   Result.Y := A.Y + B.Y;
   Result.Z := A.Z + B.Z;
+{$ENDIF}
 end;
 
 class operator TVec3F.Subtract(const A, B: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [A];
+  movups xmm1, [B];
+  subps  xmm0, xmm1;
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := A.X - B.X;
   Result.Y := A.Y - B.Y;
   Result.Z := A.Z - B.Z;
+{$ENDIF}
 end;
 
 class operator TVec3F.Multiply(const A: TVec3F; B: Single): TVec3F;
+{$IFDEF USE_SSE_ALLCASES}
+asm
+  movups xmm0, [A];
+  movss  xmm1, [B];
+  shufps xmm1, xmm1, 00000000b;
+  mulps  xmm0, xmm1;
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := A.X * B;
   Result.Y := A.Y * B;
   Result.Z := A.Z * B;
+{$ENDIF}
 end;
 
 class operator TVec3F.Multiply(A: Single; const B: TVec3F): TVec3F;
+{$IFDEF USE_SSE_ALLCASES}
+asm
+  movss xmm0, [A];
+  movups xmm1, [B];
+  shufps xmm0, xmm0, 00000000b;
+  mulps  xmm0, xmm1;
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := A * B.X;
   Result.Y := A * B.Y;
   Result.Z := A * B.Z;
+{$ENDIF}
 end;
 
 class operator TVec3F.Multiply(const A, B: TVec3F): Single;
+{$IFDEF USE_SSE_ALLCASES}
 asm
   movups xmm0, [A];
   movups xmm1, [B];
   dpps   xmm0, xmm1, 01110001b;
   movss  [Result], xmm0;
-end;
-{begin
+{$ELSE}
+begin
   Result := A.X * B.X + A.Y * B.Y + A.Z * B.Z;
-end;}
+{$ENDIF}
+end;
 
 class operator TVec3F.Divide(const A: TVec3F; B: Single): TVec3F;
 var
@@ -402,17 +440,33 @@ begin
 end;
 
 function TVec3F.CMin(const Vec: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [Self];
+  movups xmm1, [Vec];
+  minps  xmm0, xmm1;
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := Min(X, Vec.X);
   Result.Y := Min(Y, Vec.Y);
   Result.Z := Min(Z, Vec.Z);
+{$ENDIF}
 end;
 
 function TVec3F.CMax(const Vec: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [Self];
+  movups xmm1, [Vec];
+  maxps  xmm0, xmm1;
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := Max(X, Vec.X);
   Result.Y := Max(Y, Vec.Y);
   Result.Z := Max(Z, Vec.Z);
+{$ENDIF}
 end;
 
 function TVec3F.Dot(const Vec: TVec3F): Single;
@@ -420,7 +474,8 @@ begin
   Result := Self * Vec;
 end;
 
-function TVec3F.CrossAsm(const Vec: TVec3F): TVec3F;
+function TVec3F.Cross(const Vec: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
 asm
   movups xmm0, [Self];
   movups xmm1, [Vec];
@@ -440,9 +495,15 @@ asm
   subps  xmm0, xmm2;
 
   movups [Result], xmm0;
+{$ELSE}
+begin
+  Result.X := Y * Vec.Z - Z * Vec.Y;
+  Result.Y := Z * Vec.X - X * Vec.Z;
+  Result.Z := X * Vec.Y - Y * Vec.X;
+{$ENDIF}
 end;
 
-function TVec3F.Cross{Native}(const Vec: TVec3F): TVec3F;
+function TVec3F.CrossNative(const Vec: TVec3F): TVec3F;
 begin
   Result.X := Y * Vec.Z - Z * Vec.Y;
   Result.Y := Z * Vec.X - X * Vec.Z;
@@ -460,24 +521,29 @@ begin
   Result.Z := Z * Norm;
 end;
 
-function TVec3F.NormalizeAsm(): TVec3F;
+function TVec3F.Normalize(): TVec3F;
+{$IFDEF USE_SSE}
 asm
   movups  xmm0, [Self];
-  movaps  xmm7, [Vec3Mask];
-  andps   xmm0, xmm7;
-  movaps  xmm2, xmm0;
+  movaps  xmm1, xmm0;
 
-  mulps   xmm0, xmm0;
-  haddps  xmm0, xmm0;
-  haddps  xmm0, xmm0;
-  //dpps    xmm0, xmm0, 01111111b;
+  dpps    xmm0, xmm0, 01111111b;
   sqrtps  xmm0, xmm0;
-  divps   xmm2, xmm0;
+  divps   xmm1, xmm0;
 
-  movups  [Result], xmm2;
+  movups  [Result], xmm1;
+{$ELSE}
+var
+  Norm: Single;
+begin
+  Norm := 1 / Sqrt(X * X + Y * Y + Z * Z);
+  Result.X := X * Norm;
+  Result.Y := Y * Norm;
+  Result.Z := Z * Norm;
+{$ENDIF}
 end;
 
-function TVec3F.Normalize{Native}(): TVec3F;
+function TVec3F.NormalizeNative(): TVec3F;
 var
   Norm: Single;
 begin
@@ -530,44 +596,36 @@ begin
   Result := (1 - Time) * Self + Time * Target;
 end;
 
-function TVec3F.Rotate{Asm}(const ANormal: TVec3F): TVec3F;
+function TVec3F.Rotate(const ANormal: TVec3F): TVec3F;
 const
   cPrecision: Single = 1e-4;
+{$IFDEF USE_SSE}
 asm
   movups xmm0, [ANormal];
   movaps xmm7, [Vec3Mask];
-  andps  xmm0, xmm7;
-  // ANormal in xmm0
-  // Vec3Mask in xmm7
   movaps xmm1, [XUnit];
-  // XVec in xmm1
   movaps xmm2, [ZUnit];
-  // ZVec in xmm2
+  andps  xmm0, xmm7;
 
   movaps  xmm3, xmm0;
-  dpps    xmm3, xmm2, 01111111b;
-  // ANormal * ZVec in xmm3 (dot product)
+  dpps    xmm3, xmm2, 01111111b; // ANormal * ZVec in xmm3 (dot product)
 
   xorps   xmm4, xmm4;
   subss   xmm4, xmm3;
-  maxss   xmm3, xmm4;
-  // Abs(ANormal * ZVec) in xmm3
+  maxss   xmm3, xmm4; // Abs(ANormal * ZVec) in xmm3
 
   subss   xmm1, xmm3;
   xorps   xmm4, xmm4;
   subss   xmm4, xmm1;
-  maxss   xmm1, xmm4;
-  // Abs(1 - Abs(ANormal, ZVec)) in xmm1
+  maxss   xmm1, xmm4; // Abs(1 - Abs(ANormal, ZVec)) in xmm1
 
-  // check 1 - Abs(1 - Abs(ANormal, ZVec)) < cPrecision
   movss  xmm3, [cPrecision];
   comiss xmm3, xmm1;
-  ja     @simple_case;
+  ja     @simple_case; // if 1 - Abs(1 - Abs(ANormal, ZVec)) < cPrecision
 
   // Build the orthonormal basis of the normal vector
   // xmm0 - ANormal
   // xmm2 - ZVec
-
   movaps xmm3, xmm0;
   movaps xmm4, xmm0;
   movaps xmm5, xmm2;
@@ -579,8 +637,7 @@ asm
 
   mulps  xmm3, xmm2;
   mulps  xmm4, xmm5;
-  subps  xmm3, xmm4;
-  // bX = Cross(ANormal, ZVec) in xmm3
+  subps  xmm3, xmm4; // bX = Cross(ANormal, ZVec) in xmm3
 
   movaps xmm1, xmm0; // copy ANormal
   movaps xmm2, xmm0;
@@ -594,8 +651,7 @@ asm
 
   mulps  xmm1, xmm4;
   mulps  xmm2, xmm5;
-  subps  xmm1, xmm2;
-  // bY = Cross(ANormal, bX) in xmm1
+  subps  xmm1, xmm2; // bY = Cross(ANormal, bX) in xmm1
 
   // xmm0 - ANormal
   // xmm1 - bY
@@ -605,15 +661,13 @@ asm
   movaps  xmm2, xmm3;
   dpps    xmm3, xmm3, 01111111b
   sqrtps  xmm3, xmm3;
-  divps   xmm2, xmm3;
-  // bX in xmm2
+  divps   xmm2, xmm3; // bX in xmm2
 
   // Normalize bY
   movaps  xmm3, xmm1;
   dpps    xmm1, xmm1, 01111111b;
   sqrtps  xmm1, xmm1;
-  divps   xmm3, xmm1;
-  // bY in xmm3
+  divps   xmm3, xmm1; // bY in xmm3
 
   // Transform the unit vector to this basis
   // xmm0 - ANormal
@@ -621,8 +675,7 @@ asm
   // xmm3 - bY
 
   movups  xmm1, [Self];
-  andps   xmm1, xmm7;
-  // Self in xmm1
+  andps   xmm1, xmm7; // Self in xmm1
 
   movss   xmm4, xmm1; // Get X
   shufps  xmm4, xmm4, 00000000b;
@@ -646,8 +699,7 @@ asm
 @simple_case:
   // xmm0 - ANormal
   movups  xmm1, [Self];
-  dpps    xmm0, xmm1, 01111111b;
-  // now ANormal * Self in xmm0 (dot product)
+  dpps    xmm0, xmm1, 01111111b; // now ANormal * Self in xmm0 (dot product)
 
   xorps   xmm2, xmm2;
   comiss  xmm0, xmm2;
@@ -658,10 +710,25 @@ asm
   jmp     @return;
 
 @simple_result:
-  //  Result = Self * Sign(Self * ANormal);
-  movups  [Result], xmm1;
+  movups  [Result], xmm1; //  Result = Self * Sign(Self * ANormal);
 
 @return:
+{$ELSE}
+var
+  bX, bY: TVec3F;
+begin
+  // If the normal vector is already the world space upwards (or downwards) vector, don't do anything
+  if not NearValue(Abs(ANormal * Vec3F(0, 0, 1)), 1, cPrecision) then
+  begin
+    // Build the orthonormal basis of the normal vector.
+    bX := ANormal.Cross(Vec3F(0, 0, 1)).Normalize;
+    bY := ANormal.Cross(bX).Normalize;
+    // Transform the unit vector to this basis.
+    Result := bX * X + bY * Y + ANormal * Z;
+  end
+  else
+    Result := Self * uMathUtils.Sign(Self.Dot(ANormal));
+{$ENDIF}
 end;
 
 function TVec3F.RotateNative(const ANormal: TVec3F): TVec3F;
@@ -684,13 +751,28 @@ begin
 end;
 
 function TVec3F.Length(): Single;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [Self];
+  dpps   xmm0, xmm0, 01110001b;
+  sqrtss xmm0, xmm0;
+  movss  [Result], xmm0;
+{$ELSE}
 begin
   Result := Sqrt(X * X + Y * Y + Z * Z);
+{$ENDIF}
 end;
 
 function TVec3F.LengthSqr(): Single;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [Self];
+  dpps   xmm0, xmm0, 01110001b;
+  movss  [Result], xmm0;
+{$ELSE}
 begin
   Result := X * X + Y * Y + Z * Z;
+{$ENDIF}
 end;
 
 function TVec3F.IsZero(): Boolean;

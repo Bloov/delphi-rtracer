@@ -3,7 +3,7 @@ unit uBVH;
 interface
 
 uses
-  uRay, uAABB, uHitable;
+  uVectors, uRay, uAABB, uHitable;
 
 type
   TBVHNode = class(THitable)
@@ -16,6 +16,7 @@ type
     destructor Destroy; override;
 
     function Hit(const ARay: TRay; AMinDist, AMaxDist: Single; var Hit: TRayHit): Boolean; override;
+    function GetNormal(const APoint: TVec3F; ATime: Single = 0): TVec3F; override;
     function BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean; override;
 
     property Left: TBVHNode read FLeft;
@@ -26,7 +27,7 @@ type
 implementation
 
 uses
-  SysUtils, Math, uMathUtils, uVectors;
+  SysUtils, Math, uMathUtils;
 
 type
   TCompareFunc = function(A, B: THitable; ATime0, ATime1: Single): Integer;
@@ -227,6 +228,11 @@ begin
 
     Result := IsHitNear or IsHitFar;
   end;
+end;
+
+function TBVHNode.GetNormal(const APoint: TVec3F; ATime: Single = 0): TVec3F;
+begin
+  Result := Vec3F(0, 0, 0);
 end;
 
 function TBVHNode.BoundingBox(ATime0, ATime1: Single; out BBox: TAABB): Boolean;
