@@ -88,6 +88,7 @@ type
       SPP: Integer;
 
       constructor Create(ATarget: TImageBuffer2D; ACounter: IOmniResourceCount; AXId, AYId, AWidth, AHeight, ASPP: Integer);
+      destructor Destroy; override;
     end;
 
   private
@@ -113,7 +114,6 @@ type
       BlockX, BlockY, BlockWidth, BlockHeight, BlockSPP: Integer);
 
     procedure ProcessRenderWork(const AWorkItem: IOmniWorkItem);
-    procedure ProcessWorkDone(const ASender: IOmniBackgroundWorker; const AWorkItem: IOmniWorkItem);
 
   public
     constructor Create();
@@ -293,6 +293,12 @@ begin
   SPP := ASPP;
 end;
 
+destructor TRenderer.TRenderWork.Destroy;
+begin
+  FreeAndNil(Statistics);
+  inherited;
+end;
+
 { TRenderer }
 {$REGION ' TRenderer '}
 constructor TRenderer.Create();
@@ -302,6 +308,7 @@ end;
 
 destructor TRenderer.Destroy;
 begin
+  FreeAndNil(FStatistics);
   FreeAndNil(FCamera);
   FreeAndNil(FScene);
   FreeAndNil(FOptions);
@@ -471,11 +478,7 @@ begin
   Target := TImageBuffer2D.Create(Options.Width, Options.Height);
   try
     FRenderWorker := Parallel.BackgroundWorker;
-    FRenderWorker.
-      NumTasks(System.CPUCount).
-      {StopOn(FCancelToken).}
-      OnRequestDone_Asy(ProcessWorkDone).
-      Execute(ProcessRenderWork);
+    FRenderWorker.NumTasks(Options.ParallelTasks).Execute(ProcessRenderWork);
 
     FStatistics.StartTime;
     GetBlocksCount(XCount, YCount);
@@ -508,7 +511,8 @@ begin
 
       Dec(Samples, CurSamples);
       FStatistics.UpdateTime;
-      FStatistics.FProgress := ((TotalSamples - Samples) / IfThen(TotalSamples = 0, 1, TotalSamples));
+      if FStatistics.GetEmitedAtDepth(0) > 0 then
+        FStatistics.FProgress := FStatistics.GetEmitedAtDepth(0) / (Options.Width * Options.Height * Options.SamplesPerPixel);
       if Samples = 0 then
         Break;
 
@@ -540,24 +544,20 @@ procedure TRenderer.ProcessRenderWork(const AWorkItem: IOmniWorkItem);
 var
   Work: TRenderWork;
 begin
-  AWorkItem.SkipCompletionHandler := False;
-  AWorkItem.Result := TRenderStatistics.Create(Options.DepthLimit);
-  AWorkItem.Result.OwnsObject := True;
   AWorkItem.Data.OwnsObject := True;
-
   Work := AWorkItem.Data.AsObject as TRenderWork;
-  DoRenderBlock(Work.Target, TRenderStatistics(AWorkItem.Result.AsObject), Work.XId, Work.YId, Work.Width, Work.Height, Work.SPP);
-  Work.Counter.Allocate;
-end;
 
-procedure TRenderer.ProcessWorkDone(const ASender: IOmniBackgroundWorker; const AWorkItem: IOmniWorkItem);
-begin
+  Work.Statistics := TRenderStatistics.Create(Options.DepthLimit);
+  DoRenderBlock(Work.Target, Work.Statistics, Work.XId, Work.YId, Work.Width, Work.Height, Work.SPP);
+
   FStatisticsLock.Acquire;
   try
-    FStatistics.Merge(AWorkItem.Result.AsObject as TRenderStatistics);
+    FStatistics.Merge(Work.Statistics);
   finally
     FStatisticsLock.Release;
   end;
+
+  Work.Counter.Allocate;
 end;
 
 procedure TRenderer.DoRenderBlock(ATarget: TImageBuffer2D; AStatistics: TRenderStatistics;

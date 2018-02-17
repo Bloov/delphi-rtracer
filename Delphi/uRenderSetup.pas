@@ -41,13 +41,13 @@ type
 
     function CanClose(): Boolean;
 
-    procedure EnableControls;
+    {procedure EnableControls;}
     procedure TransferData(ToControls: Boolean);
     procedure UpdateData();
     procedure SaveData();
 
   public
-    constructor Create(AOwner: TComponent; AOptions: TRenderOptions);
+    constructor Create(AOwner: TComponent; AOptions: TRenderOptions); reintroduce;
 
     function ShowModal(): Integer; override;
   end;
@@ -82,10 +82,9 @@ begin
   Result := True;
 end;
 
-procedure TSetupRender.EnableControls;
+{procedure TSetupRender.EnableControls;
 begin
-
-end;
+end;}
 
 procedure TSetupRender.TransferData(ToControls: Boolean);
 begin
