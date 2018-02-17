@@ -48,19 +48,27 @@ type
     constructor Create(aX, aY, aZ: Single); overload;
     constructor CreateUnitSpherical(Phi, Theta: Single);
 
+    // sets Arr[3] to zero
+    procedure FixTail();
+
     class operator Negative(const Vec: TVec3F): TVec3F; inline;
     class operator Positive(const Vec: TVec3F): TVec3F; inline;
     class operator Equal(const A, B: TVec3F): Boolean; inline;
     class operator NotEqual(const A, B: TVec3F): Boolean; inline;
-    class operator Add(const A, B: TVec3F): TVec3F; {$IFNDEF USE_SSE}inline;{$ENDIF}
-    class operator Subtract(const A, B: TVec3F): TVec3F; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    class operator Add(const A, B: TVec3F): TVec3F; overload; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    class operator Add(const A: TVec3F; B: Single): TVec3F; overload; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    class operator Add(A: Single; const B: TVec3F): TVec3F; overload; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    class operator Subtract(const A, B: TVec3F): TVec3F; overload; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    class operator Subtract(const A: TVec3F; B: Single): TVec3F; overload; {$IFNDEF USE_SSE}inline;{$ENDIF}
+    class operator Subtract(A: Single; const B: TVec3F): TVec3F; overload; {$IFNDEF USE_SSE}inline;{$ENDIF}
     class operator Multiply(const A: TVec3F; B: Single): TVec3F; overload; {$IFNDEF USE_SSE_ALLCASES}inline;{$ENDIF}
     class operator Multiply(A: Single; const B: TVec3F): TVec3F; overload; {$IFNDEF USE_SSE_ALLCASES}inline;{$ENDIF}
     class operator Multiply(const A, B: TVec3F): Single; overload; {$IFNDEF USE_SSE}inline;{$ENDIF}
     class operator Divide(const A: TVec3F; B: Single): TVec3F; overload; inline;
     class operator Divide(A: Single; const B: TVec3F): TVec3F; overload; inline;
+    class operator Divide(const A, B: TVec3F): TVec3F; overload; inline;
 
-    // componentwise operations
+    // Componentwise operations
     function CMul(const Vec: TVec3F): TVec3F; inline;
     function CDiv(const Vec: TVec3F): TVec3F; inline;
     function CMin(const Vec: TVec3F): TVec3F;
@@ -70,20 +78,26 @@ type
     function Cross(const Vec: TVec3F): TVec3F;
     function CrossNative(const Vec: TVec3F): TVec3F; inline;
     function Projection(const Vec: TVec3F): TVec3F; inline;
+    function Distance(const Vec: TVec3F): Single; inline;
+    function DistanceSqr(const Vec: TVec3F): Single; inline;
     function Normalize(): TVec3F; {$IFNDEF USE_SSE}inline;{$ENDIF}
     function NormalizeNative(): TVec3F; inline;
-    function Distance(const Vec: TVec3F): Single; inline;
+    procedure SetNormalized(); {$IFNDEF USE_SSE}inline;{$ENDIF}
     function Clip(ALength: Single): TVec3F;
     function Stretch(ALength: Single): TVec3F;
     function Lerp(const Target: TVec3F; Time: Single): TVec3F; inline;
     function Rotate(const ANormal: TVec3F): TVec3F;
     function RotateNative(const ANormal: TVec3F): TVec3F;
+    function ReflectByNormal(const Normal: TVec3F): TVec3F;
+    function Reflect(const Vec: TVec3F): TVec3F;
 
     function Length(): Single; {$IFNDEF USE_SSE}inline;{$ENDIF}
     function LengthSqr(): Single; {$IFNDEF USE_SSE}inline;{$ENDIF}
 
     function IsZero(): Boolean; inline;
     function IsAnyZero(): Boolean; inline;
+    function IsNormalized(): Boolean; overload;
+    function IsNormalized(APrecision: Single): Boolean; overload;
     function IsValid(): Boolean;
     function IsInf(): Boolean;
 
@@ -95,6 +109,7 @@ type
 
 function Vec2F(X, Y: Single): TVec2F; inline;
 function Vec3F(X, Y, Z: Single): TVec3F; inline;
+function Vec3Full(X, Y, Z, T: Single): TVec3F; inline;
 
 implementation
 
@@ -103,11 +118,22 @@ uses
 
 var
   VectorsMem, AlignedMem: Pointer;
-  Vec3Mask: PVec3F; // 0-base
-  XUnit: PVec3F;    // +16 bytes
-  ZUnit: PVec3F;    // +32 bytes
-  YUnit: PVec3F;    // +48 bytes
-  AllUnit: PVec3F;  // +64 bytes
+
+  SSE_MASK_SIGN: PVec3F; // sign bit mask
+  SSE_MASK_PNPN: PVec3F; // pos, neg, pos, neg XYZT mask
+  SSE_MASK_NPNP: PVec3F; // neg, pos, neg, pos XYZT mask
+  SSE_MASK_0FFF: PVec3F; // XYZ0 mask
+  SSE_MASK_ABS: PVec3F;  // abs value mask
+
+  SSE_XUnit: PVec3F;   // X-direction unit vector
+  SSE_YUnit: PVec3F;   // Y-direction unit vector
+  SSE_ZUnit: PVec3F;   // Z-direction unit vector
+  SSE_XYZUnit: PVec3F; // all directions vector
+
+  SSE_OneHalf: PVec3F; // (0.5, 0.5, 0.5, 0.5)
+  SSE_One: PVec3F;     // (1.0, 1.0, 1.0, 1.0)
+  SSE_Two: PVec3F;     // (2.0, 2.0, 2.0, 2.0)
+  SSE_Three: PVec3F;   // (3.0, 3.0, 3.0, 3.0)
 
 function Vec2F(X, Y: Single): TVec2F;
 begin
@@ -120,6 +146,14 @@ begin
   Result.X := X;
   Result.Y := Y;
   Result.Z := Z;
+end;
+
+function Vec3Full(X, Y, Z, T: Single): TVec3F;
+begin
+  Result.Arr[0] := X;
+  Result.Arr[1] := Y;
+  Result.Arr[2] := Z;
+  Result.Arr[3] := T;
 end;
 
 { TVec2F }
@@ -309,6 +343,11 @@ begin
   Z := Cos(Theta);
 end;
 
+procedure TVec3F.FixTail();
+begin
+  Arr[3] := 0;
+end;
+
 class operator TVec3F.Negative(const Vec: TVec3F): TVec3F;
 begin
   Result.X := -Vec.X;
@@ -346,6 +385,20 @@ begin
 {$ENDIF}
 end;
 
+class operator TVec3F.Add(const A: TVec3F; B: Single): TVec3F;
+begin
+  Result.X := A.X + B;
+  Result.Y := A.Y + B;
+  Result.Z := A.Z + B;
+end;
+
+class operator TVec3F.Add(A: Single; const B: TVec3F): TVec3F;
+begin
+  Result.X := A + B.X;
+  Result.Y := A + B.Y;
+  Result.Z := A + B.Z;
+end;
+
 class operator TVec3F.Subtract(const A, B: TVec3F): TVec3F;
 {$IFDEF USE_SSE}
 asm
@@ -359,6 +412,20 @@ begin
   Result.Y := A.Y - B.Y;
   Result.Z := A.Z - B.Z;
 {$ENDIF}
+end;
+
+class operator TVec3F.Subtract(const A: TVec3F; B: Single): TVec3F;
+begin
+  Result.X := A.X - B;
+  Result.Y := A.Y - B;
+  Result.Z := A.Z - B;
+end;
+
+class operator TVec3F.Subtract(A: Single; const B: TVec3F): TVec3F;
+begin
+  Result.X := A - B.X;
+  Result.Y := A - B.Y;
+  Result.Z := A - B.Z;
 end;
 
 class operator TVec3F.Multiply(const A: TVec3F; B: Single): TVec3F;
@@ -423,6 +490,13 @@ begin
   Result.Z := A / B.Z;
 end;
 
+class operator TVec3F.Divide(const A, B: TVec3F): TVec3F;
+begin
+  Result.X := A.Z / B.X;
+  Result.Y := A.Y / B.Y;
+  Result.Z := A.Z / B.Z;
+end;
+
 function TVec3F.CMul(const Vec: TVec3F): TVec3F;
 begin
   Result.X := X * Vec.X;
@@ -478,7 +552,7 @@ asm
   mov    ebx,  [AlignedMem];
   movups xmm0, [Self];
   movups xmm1, [Vec];
-  movaps xmm7, [ebx]; // Vec3Mask
+  movaps xmm7, [ebx + $30]; // SSE_MASK_0FFF
   andps  xmm0, xmm7;
   andps  xmm1, xmm7;
   movaps xmm2, xmm0;
@@ -520,6 +594,16 @@ begin
   Result.Z := Z * Norm;
 end;
 
+function TVec3F.Distance(const Vec: TVec3F): Single;
+begin
+  Result := Sqrt(Sqr(X - Vec.X) + Sqr(Y - Vec.Y) + Sqr(Z - Vec.Z));
+end;
+
+function TVec3F.DistanceSqr(const Vec: TVec3F): Single;
+begin
+  Result := Sqr(X - Vec.X) + Sqr(Y - Vec.Y) + Sqr(Z - Vec.Z);
+end;
+
 function TVec3F.Normalize(): TVec3F;
 {$IFDEF USE_SSE}
 asm
@@ -552,9 +636,26 @@ begin
   Result.Z := Z * Norm;
 end;
 
-function TVec3F.Distance(const Vec: TVec3F): Single;
+procedure TVec3F.SetNormalized(); {$IFNDEF USE_SSE}inline;{$ENDIF}
+{$IFDEF USE_SSE}
+asm
+  movups  xmm0, [Self];
+  movaps  xmm1, xmm0;
+
+  dpps    xmm0, xmm0, 01111111b;
+  sqrtps  xmm0, xmm0;
+  divps   xmm1, xmm0;
+
+  movups  [Self], xmm1;
+{$ELSE}
+var
+  Norm: Single;
 begin
-  Result := Sqrt(Sqr(X - Vec.X) + Sqr(Y - Vec.Y) + Sqr(Z - Vec.Z));
+  Norm := 1 / Sqrt(X * X + Y * Y + Z * Z);
+  X := X * Norm;
+  Y := Y * Norm;
+  Z := Z * Norm;
+{$ENDIF}
 end;
 
 function TVec3F.Clip(ALength: Single): TVec3F;
@@ -602,22 +703,18 @@ const
 asm
   movups xmm0, [ANormal];
   mov    ebx,  [AlignedMem];
-  movaps xmm7, [ebx];      // Vec3Mask
-  movaps xmm1, [ebx + 16]; // XUnit
-  movaps xmm2, [ebx + 32]; // ZUnit
+  movaps xmm7, [ebx + $30]; // SSE_MASK_0FFF
+  movaps xmm6, [ebx + $40]; // SSE_MASK_ABS
+  movaps xmm1, [ebx + $50]; // SSE_XUnit
+  movaps xmm2, [ebx + $70]; // SSE_ZUnit
   andps  xmm0, xmm7;
 
   movaps  xmm3, xmm0;
-  dpps    xmm3, xmm2, 01111111b; // ANormal * ZVec in xmm3 (dot product)
-
-  xorps   xmm4, xmm4;
-  subss   xmm4, xmm3;
-  maxss   xmm3, xmm4; // Abs(ANormal * ZVec) in xmm3
+  dpps    xmm3, xmm2, 01111111b;
+  andps   xmm3, xmm6; // Abs(Dot(ANormal, ZVec)) in xmm3
 
   subss   xmm1, xmm3;
-  xorps   xmm4, xmm4;
-  subss   xmm4, xmm1;
-  maxss   xmm1, xmm4; // Abs(1 - Abs(ANormal, ZVec)) in xmm1
+  andps   xmm1, xmm6; // Abs(1 - Abs(ANormal, ZVec)) in xmm1
 
   movss  xmm3, [cPrecision];
   comiss xmm3, xmm1;
@@ -750,6 +847,54 @@ begin
     Result := Self * uMathUtils.Sign(Self.Dot(ANormal));
 end;
 
+function TVec3F.ReflectByNormal(const Normal: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [Self];
+  movups xmm1, [Normal];
+
+  movaps xmm2, xmm0;
+  dpps   xmm2, xmm1, 01111111b;
+  addps  xmm2, xmm2; // 2 * Dot(Self * Normal)
+
+  mulps  xmm1, xmm2;
+  subps  xmm0, xmm1; // Self - 2 * Normal * Dot(Self * Normal)
+
+  movups [Result], xmm0;
+{$ELSE}
+begin
+  Result := Self - Normal * (2 * (Self * Normal));
+{$ENDIF}
+end;
+
+function TVec3F.Reflect(const Vec: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [Self];
+  movups xmm1, [Vec];
+  movaps xmm3, xmm1;
+  movaps xmm2, xmm0;
+
+  dpps   xmm3, xmm3, 01111111b;
+  sqrtps xmm3, xmm3;
+  divps  xmm1, xmm3; // Normalize the Vec
+
+  dpps   xmm2, xmm1, 01111111b;
+  addps  xmm2, xmm2; // 2 * Dot(Self * Normal)
+
+  mulps  xmm1, xmm2;
+  subps  xmm0, xmm1; // Self - 2 * Normal * Dot(Self * Normal)
+
+  movups [Result], xmm0;
+{$ELSE}
+var
+  Normal: TVec3F;
+begin
+  Normal := Vec.Normalize;
+  Result := Self - Normal * (2 * (Self * Normal));
+{$ENDIF}
+end;
+
 function TVec3F.Length(): Single;
 {$IFDEF USE_SSE}
 asm
@@ -785,6 +930,16 @@ begin
   Result := (X = 0) or (Y = 0) or (Z = 0);
 end;
 
+function TVec3F.IsNormalized(): Boolean;
+begin
+  Result := IsNormalized(1e-6);
+end;
+
+function TVec3F.IsNormalized(APrecision: Single): Boolean;
+begin
+  Result := (Abs(Length - 1.0) < APrecision);
+end;
+
 function TVec3F.IsValid(): Boolean;
 begin
   Result := not IsNaN(X) and not IsNaN(Y) and not IsNaN(Z);
@@ -796,31 +951,62 @@ begin
 end;
 
 initialization
-  VectorsMem := GetMemory(8 * SizeOf(TVec3F));
-  AlignedMem := Pointer(((NativeUInt(VectorsMem) + 16) div 16) * 16);
+  VectorsMem := GetMemory(32 * SizeOf(TVec3F) + $10);
+  AlignedMem := Pointer(((NativeUInt(VectorsMem) + $10) div $10) * $10);
 
-  Vec3Mask := PVec3F(NativeUInt(AlignedMem) + 0);
-  PCardinal(Pointer(@Vec3Mask.Arr[0]))^ := $FFFFFFFF;
-  PCardinal(Pointer(@Vec3Mask.Arr[1]))^ := $FFFFFFFF;
-  PCardinal(Pointer(@Vec3Mask.Arr[2]))^ := $FFFFFFFF;
-  PCardinal(Pointer(@Vec3Mask.Arr[3]))^ := 0;
+  SSE_MASK_SIGN := PVec3F(NativeUInt(AlignedMem) + $00);
+  PCardinal(Pointer(@SSE_MASK_SIGN.Arr[0]))^ := $80000000;
+  PCardinal(Pointer(@SSE_MASK_SIGN.Arr[1]))^ := $80000000;
+  PCardinal(Pointer(@SSE_MASK_SIGN.Arr[2]))^ := $80000000;
+  PCardinal(Pointer(@SSE_MASK_SIGN.Arr[3]))^ := $80000000;
 
-  XUnit := PVec3F(NativeUInt(AlignedMem) + 16);
-  XUnit^ := Vec3F(1, 0, 0);
-  XUnit.Arr[3] := 0;
+  SSE_MASK_PNPN := PVec3F(NativeUInt(AlignedMem) + $10);
+  PCardinal(Pointer(@SSE_MASK_PNPN.Arr[0]))^ := $00000000;
+  PCardinal(Pointer(@SSE_MASK_PNPN.Arr[1]))^ := $80000000;
+  PCardinal(Pointer(@SSE_MASK_PNPN.Arr[2]))^ := $00000000;
+  PCardinal(Pointer(@SSE_MASK_PNPN.Arr[3]))^ := $80000000;
 
-  YUnit := PVec3F(NativeUInt(AlignedMem) + 48);
-  YUnit^ := Vec3F(0, 1, 0);
-  YUnit.Arr[3] := 0;
+  SSE_MASK_NPNP := PVec3F(NativeUInt(AlignedMem) + $20);
+  PCardinal(Pointer(@SSE_MASK_NPNP.Arr[0]))^ := $80000000;
+  PCardinal(Pointer(@SSE_MASK_NPNP.Arr[1]))^ := $00000000;
+  PCardinal(Pointer(@SSE_MASK_NPNP.Arr[2]))^ := $80000000;
+  PCardinal(Pointer(@SSE_MASK_NPNP.Arr[3]))^ := $00000000;
 
-  ZUnit := PVec3F(NativeUInt(AlignedMem) + 32);
-  ZUnit^ := Vec3F(0, 0, 1);
-  ZUnit.Arr[3] := 0;
+  SSE_MASK_0FFF := PVec3F(NativeUInt(AlignedMem) + $30);
+  PCardinal(Pointer(@SSE_MASK_0FFF.Arr[0]))^ := $FFFFFFFF;
+  PCardinal(Pointer(@SSE_MASK_0FFF.Arr[1]))^ := $FFFFFFFF;
+  PCardinal(Pointer(@SSE_MASK_0FFF.Arr[2]))^ := $FFFFFFFF;
+  PCardinal(Pointer(@SSE_MASK_0FFF.Arr[3]))^ := $00000000;
 
-  AllUnit := PVec3F(NativeUInt(AlignedMem) + 64);
-  AllUnit^ := Vec3F(1, 1, 1);
-  AllUnit.Arr[3] := 0;
+  SSE_MASK_ABS := PVec3F(NativeUInt(AlignedMem) + $40);
+  PCardinal(Pointer(@SSE_MASK_ABS.Arr[0]))^ := $7FFFFFFF;
+  PCardinal(Pointer(@SSE_MASK_ABS.Arr[1]))^ := $7FFFFFFF;
+  PCardinal(Pointer(@SSE_MASK_ABS.Arr[2]))^ := $7FFFFFFF;
+  PCardinal(Pointer(@SSE_MASK_ABS.Arr[3]))^ := $7FFFFFFF;
 
+  SSE_XUnit := PVec3F(NativeUInt(AlignedMem) + $50);
+  SSE_XUnit^ := Vec3Full(1, 0, 0, 0);
+
+  SSE_YUnit := PVec3F(NativeUInt(AlignedMem) + $60);
+  SSE_YUnit^ := Vec3Full(0, 1, 0, 0);
+
+  SSE_ZUnit := PVec3F(NativeUInt(AlignedMem) + $70);
+  SSE_ZUnit^ := Vec3Full(0, 0, 1, 0);
+
+  SSE_XYZUnit := PVec3F(NativeUInt(AlignedMem) + $80);
+  SSE_XYZUnit^ := Vec3Full(1, 1, 1, 0);
+
+  SSE_OneHalf := PVec3F(NativeUInt(AlignedMem) + $90);
+  SSE_OneHalf^ := Vec3Full(0.5, 0.5, 0.5, 0.5);
+
+  SSE_One := PVec3F(NativeUInt(AlignedMem) + $A0);
+  SSE_One^ := Vec3Full(1, 1, 1, 1);
+
+  SSE_Two := PVec3F(NativeUInt(AlignedMem) + $B0);
+  SSE_Two^ := Vec3Full(2, 2, 2, 2);
+
+  SSE_Three := PVec3F(NativeUInt(AlignedMem) + $C0);
+  SSE_Three^ := Vec3Full(3, 3, 3, 3);
 finalization
   FreeMemory(VectorsMem);
 end.

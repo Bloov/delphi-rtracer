@@ -488,7 +488,7 @@ var
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth >= Options.DepthLimit then
+  if ADepth > Options.DepthLimit then
   begin
     Result :=  ColorVec(0.0, 0.0, 0.0);
     Exit;
@@ -500,6 +500,7 @@ begin
     Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
     if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
     begin
+      AtomicIncrement(FEmitedRays, 1);
       Scattered.Time := ARay.Time;
       Result := Attenuation * GetColor(Scattered, ADepth + 1);
     end
@@ -547,7 +548,7 @@ var
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth >= Options.DepthLimit then
+  if ADepth > Options.DepthLimit then
   begin
     Result :=  Depth2Color(ADepth);
     Exit;
@@ -559,6 +560,7 @@ begin
     Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
     if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
     begin
+      AtomicIncrement(FEmitedRays, 1);
       Scattered.Time := ARay.Time;
       Result := GetDepthColor(Scattered, ADepth + 1);
     end
@@ -582,7 +584,7 @@ var
   Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth >= Options.DepthLimit then
+  if ADepth > Options.DepthLimit then
   begin
     Result :=  ColorVec(0.0, 0.0, 0.0);
     Exit;
@@ -595,6 +597,7 @@ begin
     if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
       if ADepth <> ATargetDepth then
       begin
+        AtomicIncrement(FEmitedRays, 1);
         Scattered.Time := ARay.Time;
         Result := GetScatteredAtDepth(Scattered, ADepth + 1, ATargetDepth);
       end
@@ -627,6 +630,7 @@ begin
     if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
       if ADepth <> ATargetDepth then
       begin
+        AtomicIncrement(FEmitedRays, 1);
         Scattered.Time := ARay.Time;
         Result := Attenuation * GetColorAtDepth(Scattered, ADepth + 1, ATargetDepth);
       end

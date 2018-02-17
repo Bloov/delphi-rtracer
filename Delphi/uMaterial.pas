@@ -111,9 +111,9 @@ begin
 
   Scattered.Origin := AOrigin + Normal * cPrecisionDelta;
   if Roughness = 0 then
-    Scattered.Direction := Reflect(AIncident, Normal)
+    Scattered.Direction := AIncident.ReflectByNormal(Normal)
   else
-    Scattered.Direction := Reflect(AIncident, RandomMicrofacetNormal(Roughness).Rotate(Normal));
+    Scattered.Direction := AIncident.ReflectByNormal(RandomMicrofacetNormal(Roughness).Rotate(Normal));
   Attenuation := Albedo;
   Result := (Scattered.Direction * Normal > 0);
 end;
@@ -156,7 +156,7 @@ begin
   begin
     // Total internal reflection case
     Scattered.Origin := AOrigin + Normal * cPrecisionDelta;
-    Scattered.Direction := Reflect(AIncident, Normal);
+    Scattered.Direction := AIncident.ReflectByNormal(Normal);
     Exit(True);
   end;
 
@@ -169,7 +169,7 @@ begin
   if RandomF < R then
   begin
     Scattered.Origin := AOrigin + Normal * cPrecisionDelta;
-    Scattered.Direction := Reflect(AIncident, Normal);
+    Scattered.Direction := AIncident.ReflectByNormal(Normal);
   end
   else
   begin

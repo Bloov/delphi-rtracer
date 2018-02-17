@@ -64,7 +64,7 @@ asm
   movups xmm3, dqword ptr [ARay + TRay.FInvDirection];
   mov    ebx,  [AlignedMem];
   movaps xmm6, [ebx];           // VecInf
-  movaps xmm7, [ebx + 16];      // VecNegInf
+  movaps xmm7, [ebx + $10];     // VecNegInf
 
   subps  xmm0, xmm2;
   subps  xmm1, xmm2;
@@ -169,17 +169,14 @@ begin
 end;
 
 initialization
-  VectorsMem := GetMemory(8 * SizeOf(TVec3F));
-  AlignedMem := Pointer(((NativeUInt(VectorsMem) + 16) div 16) * 16);
+  VectorsMem := GetMemory(8 * SizeOf(TVec3F) + $10);
+  AlignedMem := Pointer(((NativeUInt(VectorsMem) + $10) div $10) * $10);
 
-  VecInf :=  PVec3F(NativeUInt(AlignedMem) + 0);
-  VecInf^ := Vec3F(Infinity, Infinity, Infinity);
-  VecInf.Arr[3] := 0;
+  VecInf :=  PVec3F(NativeUInt(AlignedMem) + $00);
+  VecInf^ := Vec3Full(Infinity, Infinity, Infinity, Infinity);
 
-  VecNegInf := PVec3F(NativeUInt(AlignedMem) + 16);
-  VecNegInf^ := Vec3F(NegInfinity, NegInfinity, NegInfinity);
-  VecNegInf.Arr[3] := 0;
-
+  VecNegInf := PVec3F(NativeUInt(AlignedMem) + $10);
+  VecNegInf^ := Vec3Full(NegInfinity, NegInfinity, NegInfinity, NegInfinity);
 finalization
   FreeMemory(VectorsMem);
 end.
