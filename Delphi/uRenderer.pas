@@ -3,7 +3,7 @@ unit uRenderer;
 interface
 
 uses
-  Vcl.Graphics, uImage2D, uVectors, uRay, uColor, uScene, uCamera,
+  System.Diagnostics, Vcl.Graphics, uImage2D, uVectors, uRay, uColor, uScene, uCamera,
   OtlParallel, OtlCommon, OtlSync, OtlTask, OtlTaskControl;
 
 type
@@ -11,6 +11,7 @@ type
 
   TRenderOptions = class
   private
+    FParallelTasks: Integer;
     FRenderTarget: TRenderTarget;
     FDepthLimit: Integer;
     FTargetDepth: Integer;
@@ -30,6 +31,7 @@ type
 
     procedure SetToDefault;
 
+    property ParallelTasks: Integer read FParallelTasks write FParallelTasks;
     property RenderTarget: TRenderTarget read FRenderTarget write FRenderTarget;
     property DepthLimit: Integer read FDepthLimit write FDepthLimit;
     property TargetDepth: Integer read FTargetDepth write FTargetDepth;
@@ -45,12 +47,29 @@ type
 
   TRenderStatistics = class
   private
+    FStopwatch: TStopwatch;
+    FStartTime, FStopTime: Int64;
+
+    FTotalTime: Single;
     FEmitedRays: Int64;
-    FTotalTime: Single; // in millisecons
-    FProgress: Single;
+    FEmitedRaysByDepth: array of Int64;
+    FProgress: Single; // how much of work is done
   public
+    constructor Create(ADepthLimit: Integer);
+    function GetCopy(): TRenderStatistics;
+
+    procedure StartTime;
+    procedure UpdateTime;
+
+    procedure Merge(AStatistics: TRenderStatistics; MergeTime: Boolean = False);
+    procedure RayEmmited(ADepth: Integer);
+
+    function GetDepthLevelsCount(): Integer;
+    function GetEmitedAtDepth(ADepth: Integer): Int64;
+    function GetTotalTime(): Single;
+
     property EmitedRays: Int64 read FEmitedRays;
-    property TotalTime: Single read FTotalTime;
+    property TotalTime: Single read GetTotalTime;
     property Progress: Single read FProgress;
   end;
 
@@ -61,35 +80,40 @@ type
   private type
     TRenderWork = class
     public
-      Target: TAccumulationBuffer2D;
-      CountBlocks: IOmniResourceCount;
-      BlockX_Id, BlockY_Id: Integer;
-      BlockWidth, BlockHeight: Integer;
-      BlockSPP: Integer;
+      Statistics: TRenderStatistics;
+      Target: TImageBuffer2D;
+      Counter: IOmniResourceCount;
+      XId, YId: Integer;
+      Width, Height: Integer;
+      SPP: Integer;
 
-      constructor Create(ATarget: TAccumulationBuffer2D; ACount: IOmniResourceCount; AXId, AYId, AWidth, AHeight, ASPP: Integer);
+      constructor Create(ATarget: TImageBuffer2D; ACounter: IOmniResourceCount; AXId, AYId, AWidth, AHeight, ASPP: Integer);
     end;
 
   private
     FOptions: TRenderOptions;
     FScene: TScene;
     FCamera: TCamera;
-    FEmitedRays: Int64;
-    FStartTime, FEndTime: Int64;
     FIsRendering: Boolean;
+    FStatistics: TRenderStatistics;
+    FStatisticsLock: IOmniCriticalSection;
 
     FRenderTask: IOmniTaskControl;
     FRenderWorker: IOmniBackgroundWorker;
     FCancelToken: IOmniCancellationToken;
 
     function GetOptions(): TRenderOptions;
-    function GetEmptyColor(const ARay: TRay; ADepth: Integer): TColorVec;
+    function BeginCollectStatistics(): TRenderStatistics;
+
+    procedure GetBlocksCount(out XCount, YCount: Integer);
+    procedure GetBlockSize(XIdx, YIdx: Integer; out Width, Height: Integer);
 
     function DoRender(const ATask: IOmniTask; OnProgress: TRenderProgressCallback): TImage2D;
-    procedure DoRenderBlock(ATarget: TAccumulationBuffer2D;
+    procedure DoRenderBlock(ATarget: TImageBuffer2D; AStatistics: TRenderStatistics;
       BlockX, BlockY, BlockWidth, BlockHeight, BlockSPP: Integer);
 
     procedure ProcessRenderWork(const AWorkItem: IOmniWorkItem);
+    procedure ProcessWorkDone(const ASender: IOmniBackgroundWorker; const AWorkItem: IOmniWorkItem);
 
   public
     constructor Create();
@@ -104,13 +128,13 @@ type
     function IsRendering(): Boolean;
     procedure CancelRender();
 
-    function GetStatistics(AProgress: Single = 1.0): TRenderStatistics;
+    function GetStatistics(): TRenderStatistics;
 
-    function GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
-    function GetNormalColor(const ARay: TRay): TColorVec;
-    function GetDepthColor(const ARay: TRay; ADepth: Integer): TColorVec;
-    function GetScatteredAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
-    function GetColorAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
+    function GetColor(const ARay: TRay; AStats: TRenderStatistics): TColorVec;
+    function GetNormalColor(const ARay: TRay; AStats: TRenderStatistics): TColorVec;
+    function GetDepthColor(const ARay: TRay; AStats: TRenderStatistics): TColorVec;
+    function GetScatteredAtDepth(const ARay: TRay; AStats: TRenderStatistics; ATargetDepth: Integer): TColorVec;
+    function GetColorAtDepth(const ARay: TRay; AStats: TRenderStatistics; ATargetDepth: Integer): TColorVec;
 
     property Options: TRenderOptions read GetOptions;
     property Scene: TScene read FScene;
@@ -123,6 +147,7 @@ uses
   SysUtils, Math, Windows, uMathUtils, uHitable;
 
 { TRenderOptions }
+{$REGION ' TRenderOptions '}
 constructor TRenderOptions.Create;
 begin
   inherited Create;
@@ -165,6 +190,7 @@ end;
 
 procedure TRenderOptions.SetToDefault;
 begin
+  ParallelTasks := System.CPUCount;
   RenderTarget := rtColor;
   DepthLimit := 50;
   TargetDepth := 0;
@@ -177,22 +203,98 @@ begin
   BlockHeight := 64;
   BlockSamplesPerPixel := 8;
 end;
+{$ENDREGION}
+
+{ TRenderStatistics }
+{$REGION ' TRenderStatistics '}
+constructor TRenderStatistics.Create(ADepthLimit: Integer);
+begin
+  inherited Create;
+  FStopwatch := TStopwatch.Create;
+  SetLength(FEmitedRaysByDepth, ADepthLimit);
+end;
+
+function TRenderStatistics.GetCopy(): TRenderStatistics;
+var
+  I: Integer;
+begin
+  Result := TRenderStatistics.Create(GetDepthLevelsCount);
+  Result.FProgress := FProgress;
+  Result.FTotalTime := FTotalTime;
+  Result.FEmitedRays := FEmitedRays;
+  for I := 0 to GetDepthLevelsCount - 1 do
+    Result.FEmitedRaysByDepth[I] := FEmitedRaysByDepth[I];
+end;
+
+procedure TRenderStatistics.StartTime;
+begin
+  FTotalTime := 0;
+  FStartTime := FStopwatch.GetTimeStamp;
+end;
+
+procedure TRenderStatistics.UpdateTime;
+begin
+  FStopTime := FStopwatch.GetTimeStamp;
+  FTotalTime := 1e3 * ((FStopTime - FStartTime) / FStopwatch.Frequency);
+end;
+
+procedure TRenderStatistics.Merge(AStatistics: TRenderStatistics; MergeTime: Boolean = False);
+var
+  I, Count: Integer;
+begin
+  FEmitedRays := FEmitedRays + AStatistics.EmitedRays;
+  Count := Max(GetDepthLevelsCount, AStatistics.GetDepthLevelsCount);
+  SetLength(FEmitedRaysByDepth, Count);
+  for I := 0 to Count - 1 do
+    FEmitedRaysByDepth[I] := FEmitedRaysByDepth[I] + AStatistics.GetEmitedAtDepth(I);
+
+  if MergeTime then
+    FTotalTime := FTotalTime + AStatistics.TotalTime;
+end;
+
+procedure TRenderStatistics.RayEmmited(ADepth: Integer);
+begin
+  if ADepth + 1 > Length(FEmitedRaysByDepth) then
+    SetLength(FEmitedRaysByDepth, ADepth + 1);
+  Inc(FEmitedRays);
+  Inc(FEmitedRaysByDepth[ADepth]);
+end;
+
+function TRenderStatistics.GetDepthLevelsCount(): Integer;
+begin
+  Result := Length(FEmitedRaysByDepth);
+end;
+
+function TRenderStatistics.GetEmitedAtDepth(ADepth: Integer): Int64;
+begin
+  if ADepth < GetDepthLevelsCount then
+    Result := FEmitedRaysByDepth[ADepth]
+  else
+    Result := 0;
+end;
+
+function TRenderStatistics.GetTotalTime(): Single;
+begin
+  Result := FTotalTime;
+end;
+{$ENDREGION}
 
 { TRenderer.TRenderWork }
-constructor TRenderer.TRenderWork.Create(ATarget: TAccumulationBuffer2D; ACount: IOmniResourceCount;
+constructor TRenderer.TRenderWork.Create(ATarget: TImageBuffer2D; ACounter: IOmniResourceCount;
   AXId, AYId, AWidth, AHeight, ASPP: Integer);
 begin
   inherited Create;
   Target := ATarget;
-  CountBlocks := ACount;
-  BlockX_Id := AXId;
-  BlockY_Id := AYId;
-  BlockWidth := AWidth;
-  BlockHeight := AHeight;
-  BlockSPP := ASPP;
+  Counter := ACounter;
+  XId := AXId;
+  YId := AYId;
+  Width := AWidth;
+  Height := AHeight;
+  SPP := ASPP;
 end;
 
 { TRenderer }
+{$REGION ' TRenderer '}
 constructor TRenderer.Create();
 begin
   inherited Create;
@@ -213,21 +315,20 @@ begin
   Result := FOptions;
 end;
 
-function TRenderer.GetStatistics(AProgress: Single = 1.0): TRenderStatistics;
-var
-  Freq: Int64;
+function TRenderer.BeginCollectStatistics(): TRenderStatistics;
 begin
-  Result := TRenderStatistics.Create;
-  Result.FEmitedRays := FEmitedRays;
-  Result.FProgress := AProgress;
-  QueryPerformanceFrequency(Freq);
-  if (Freq <> 0) and (FEndTime <> 0) then
-    Result.FTotalTime := 1000 * (FEndTime - FStartTime) / Freq;
+  FreeAndNil(FStatistics);
+  FStatistics := TRenderStatistics.Create(Options.DepthLimit);
+  FStatisticsLock := CreateOmniCriticalSection;
+  Result := FStatistics;
 end;
 
-function TRenderer.GetEmptyColor(const ARay: TRay; ADepth: Integer): TColorVec;
+function TRenderer.GetStatistics(): TRenderStatistics;
 begin
-  Result := ColorVec(1.0, 1.0, 1.0).Lerp(ColorVec(0.5, 0.7, 1.0), 0.5 * (ARay.Direction.Y + 1));
+  if Assigned(FStatistics) then
+    Result := FStatistics.GetCopy
+  else
+    Result := nil;
 end;
 
 procedure TRenderer.SetScene(AScene: TScene);
@@ -268,6 +369,7 @@ begin
 
   FIsRendering := True;
   try
+    FStatistics := BeginCollectStatistics;
     Result := DoRender(nil, nil);
   finally
     FIsRendering := False;
@@ -283,6 +385,7 @@ begin
     Options.CopyFrom(AOptions);
 
   FIsRendering := True;
+  FStatistics := BeginCollectStatistics;
   FCancelToken := CreateOmniCancellationToken;
   FRenderTask := CreateTask(
     procedure(const ATask: IOmniTask)
@@ -320,92 +423,100 @@ begin
   Result := FCancelToken;
 end;
 
+procedure TRenderer.GetBlocksCount(out XCount, YCount: Integer);
+begin
+  XCount := 1;
+  YCount := 1;
+  if Options.UseBlocks then
+  begin
+    XCount := Options.Width div Options.BlockWidth;
+    YCount := Options.Height div Options.BlockHeight;
+    if Options.Width mod Options.BlockWidth <> 0 then
+      Inc(XCount);
+    if Options.Height mod Options.BlockHeight <> 0 then
+      Inc(YCount);
+  end;
+end;
+
+procedure TRenderer.GetBlockSize(XIdx, YIdx: Integer; out Width, Height: Integer);
+begin
+  Width := Options.Width;
+  Height := Options.Height;
+  if Options.UseBlocks then
+  begin
+    if (XIdx < Options.Width div Options.BlockWidth) then
+      Width := Options.BlockWidth
+    else
+      Width := Min(Options.BlockWidth, Options.Width - Options.BlockWidth * (Options.Width div Options.BlockWidth));
+    if (YIdx < Options.Height div Options.BlockHeight) then
+      Height := Options.BlockHeight
+    else
+      Height := Min(Options.BlockHeight, Options.Height - Options.BlockHeight * (Options.Height div Options.BlockHeight));
+  end;
+end;
+
 function TRenderer.DoRender(const ATask: IOmniTask; OnProgress: TRenderProgressCallback): TImage2D;
 var
-  Target: TAccumulationBuffer2D;
+  Target: TImageBuffer2D;
   ProgressBitmap: Vcl.Graphics.TBitmap;
   ProgressStats: TRenderStatistics;
   XCount, YCount: Integer;
+  XIdx, YIdx: Integer;
   CurWidth, CurHeight: Integer;
   CurSamples, Samples, TotalSamples: Integer;
-  NumX, NumY: Integer;
-  WorkItem: IOmniWorkItem;
+  BlocksCounter: IOmniResourceCount;
   Wait: IOmniWaitableValue;
-  CountBlocks: IOmniResourceCount;
 begin
-  Target := TAccumulationBuffer2D.Create(Options.Width, Options.Height);
+  Camera.SetupView(Options.Width, Options.Height);
+  Target := TImageBuffer2D.Create(Options.Width, Options.Height);
   try
-    Camera.SetupView(Options.Width, Options.Height);
-
-    XCount := 1;
-    YCount := 1;
-    if Options.UseBlocks then
-    begin
-      XCount := Options.Width div Options.BlockWidth;
-      YCount := Options.Height div Options.BlockHeight;
-      if Options.Width mod Options.BlockWidth <> 0 then
-        Inc(XCount);
-      if Options.Height mod Options.BlockHeight <> 0 then
-        Inc(YCount);
-    end;
-
     FRenderWorker := Parallel.BackgroundWorker;
-    FRenderWorker.NumTasks(System.CPUCount).{StopOn(FCancelToken).}Execute(ProcessRenderWork);
+    FRenderWorker.
+      NumTasks(System.CPUCount).
+      {StopOn(FCancelToken).}
+      OnRequestDone_Asy(ProcessWorkDone).
+      Execute(ProcessRenderWork);
 
+    FStatistics.StartTime;
+    GetBlocksCount(XCount, YCount);
     TotalSamples := Options.SamplesPerPixel;
     Samples := TotalSamples;
-    FEmitedRays := 0;
-    QueryPerformanceCounter(FStartTime);
     while Samples > 0 do
     begin
-      CurSamples := Samples;
-      if Options.UseBlocks then
-        CurSamples := Min(Samples, Options.BlockSamplesPerPixel);
-
-      CountBlocks := CreateResourceCount(XCount * YCount);
-      for NumX := 0 to XCount - 1 do
+      BlocksCounter := CreateResourceCount(XCount * YCount);
+      CurSamples := Min(Samples, IfThen(Options.UseBlocks, Options.BlockSamplesPerPixel, Samples));
+      for XIdx := 0 to XCount - 1 do
       begin
         if Assigned(FCancelToken) and FCancelToken.IsSignalled then
           Break;
 
-        for NumY := 0 to YCount - 1 do
+        for YIdx := 0 to YCount - 1 do
         begin
           if Assigned(FCancelToken) and FCancelToken.IsSignalled then
             Break;
 
-          CurWidth := Options.Width;
-          CurHeight := Options.Height;
-          if Options.UseBlocks then
-          begin
-            if (NumX < Options.Width div Options.BlockWidth) then
-              CurWidth := Options.BlockWidth
-            else
-              CurWidth := Min(Options.BlockWidth, Options.Width - Options.BlockWidth * (Options.Width div Options.BlockWidth));
-            if (NumY < Options.Height div Options.BlockHeight) then
-              CurHeight := Options.BlockHeight
-            else
-              CurHeight := Min(Options.BlockHeight, Options.Height - Options.BlockHeight * (Options.Height div Options.BlockHeight));
-          end;
-
-          WorkItem := FRenderWorker.CreateWorkItem(TRenderWork.Create(Target, CountBlocks, NumX, NumY, CurWidth, CurHeight, CurSamples));
-          FRenderWorker.Schedule(WorkItem);
+          GetBlockSize(XIdx, YIdx, CurWidth, CurHeight);
+          FRenderWorker.Schedule(FRenderWorker.CreateWorkItem(
+            TRenderWork.Create(Target, BlocksCounter, XIdx, YIdx, CurWidth, CurHeight, CurSamples)));
         end;
       end;
       if Assigned(FCancelToken) and FCancelToken.IsSignalled then
         Break;
 
       // TODO: Try to sync by locking regions in target buffer
-      WaitForSingleObject(CountBlocks.Handle, INFINITE);
-      Samples := Samples - CurSamples;
+      WaitForSingleObject(BlocksCounter.Handle, INFINITE);
+
+      Dec(Samples, CurSamples);
+      FStatistics.UpdateTime;
+      FStatistics.FProgress := ((TotalSamples - Samples) / IfThen(TotalSamples = 0, 1, TotalSamples));
       if Samples = 0 then
         Break;
 
-      QueryPerformanceCounter(FEndTime);
       if Assigned(OnProgress) then
       begin
         Wait := CreateWaitableValue;
         ProgressBitmap := Target.GetAsBitmap(Options.Gamma);
-        ProgressStats := GetStatistics((TotalSamples - Samples) / IfThen(TotalSamples = 0, 1, TotalSamples));
+        ProgressStats := GetStatistics;
         ATask.Invoke(
           procedure
           begin
@@ -417,8 +528,8 @@ begin
     end;
     FRenderWorker.Terminate(INFINITE);
     FRenderWorker := nil;
+    FStatistics.UpdateTime;
 
-    QueryPerformanceCounter(FEndTime);
     Result := Target.GetAsImage(Options.Gamma);
   finally
     FreeAndNil(Target);
@@ -429,13 +540,27 @@ procedure TRenderer.ProcessRenderWork(const AWorkItem: IOmniWorkItem);
 var
   Work: TRenderWork;
 begin
+  AWorkItem.SkipCompletionHandler := False;
+  AWorkItem.Result := TRenderStatistics.Create(Options.DepthLimit);
+  AWorkItem.Result.OwnsObject := True;
   AWorkItem.Data.OwnsObject := True;
+
   Work := AWorkItem.Data.AsObject as TRenderWork;
-  DoRenderBlock(Work.Target, Work.BlockX_Id, Work.BlockY_Id, Work.BlockWidth, Work.BlockHeight, Work.BlockSPP);
-  Work.CountBlocks.Allocate;
+  DoRenderBlock(Work.Target, TRenderStatistics(AWorkItem.Result.AsObject), Work.XId, Work.YId, Work.Width, Work.Height, Work.SPP);
+  Work.Counter.Allocate;
 end;
 
-procedure TRenderer.DoRenderBlock(ATarget: TAccumulationBuffer2D;
+procedure TRenderer.ProcessWorkDone(const ASender: IOmniBackgroundWorker; const AWorkItem: IOmniWorkItem);
+begin
+  FStatisticsLock.Acquire;
+  try
+    FStatistics.Merge(AWorkItem.Result.AsObject as TRenderStatistics);
+  finally
+    FStatisticsLock.Release;
+  end;
+end;
+
+procedure TRenderer.DoRenderBlock(ATarget: TImageBuffer2D; AStatistics: TRenderStatistics;
   BlockX, BlockY, BlockWidth, BlockHeight, BlockSPP: Integer);
 var
   X, Y, ShiftX, ShiftY: Integer;
@@ -462,18 +587,17 @@ begin
         U := (ShiftX + X + RandomF) / ATarget.Width;
         V := (ShiftY + Y + RandomF) / ATarget.Height;
         Ray := Camera.GetRay(U, V);
-        AtomicIncrement(FEmitedRays, 1);
         case Options.RenderTarget of
           rtColor:
-            Color := Color + GetColor(Ray, 0);
+            Color := Color + GetColor(Ray, AStatistics);
           rtNormalColor:
-            Color := Color + GetNormalColor(Ray);
+            Color := Color + GetNormalColor(Ray, AStatistics);
           rtDepth:
-            Color := Color + GetDepthColor(Ray, 0);
+            Color := Color + GetDepthColor(Ray, AStatistics);
           rtColorAtDepth:
-            Color := Color + GetColorAtDepth(Ray, 0, Options.TargetDepth);
+            Color := Color + GetColorAtDepth(Ray, AStatistics, Options.TargetDepth);
           rtScatteredAtDepth:
-            Color := Color + GetScatteredAtDepth(Ray, 0, Options.TargetDepth);
+            Color := Color + GetScatteredAtDepth(Ray, AStatistics, Options.TargetDepth);
         end;
       end;
       ATarget.AddColor(ShiftX + X, ShiftY + Y, Color, BlockSPP);
@@ -481,37 +605,44 @@ begin
   end;
 end;
 
-function TRenderer.GetColor(const ARay: TRay; ADepth: Integer): TColorVec;
+function TRenderer.GetColor(const ARay: TRay; AStats: TRenderStatistics): TColorVec;
 var
+  Depth: Integer;
+  Ray, Scattered: TRay;
   Hit: TRayHit;
   Point, Normal: TVec3F;
-  Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth > Options.DepthLimit then
+  Ray := ARay;
+  Depth := 0;
+  AStats.RayEmmited(Depth);
+  Result := ColorVec(1.0, 1.0, 1.0);
+  while True do
   begin
-    Result :=  ColorVec(0.0, 0.0, 0.0);
-    Exit;
-  end;
+    if Depth > Options.DepthLimit then
+      Exit(Result * ColorVec(0.0, 0.0, 0.0));
 
-  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
-  begin
-    Point := ARay.At(Hit.Distance);
-    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
-    if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
+    if Scene.Hit(Ray, 0, MaxSingle, Hit) then
     begin
-      AtomicIncrement(FEmitedRays, 1);
-      Scattered.Time := ARay.Time;
-      Result := Attenuation * GetColor(Scattered, ADepth + 1);
+      Point := Ray.At(Hit.Distance);
+      Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+      if Hit.Primitive.Material.Scatter(Point, Ray.Direction, Normal, Scattered, Attenuation) then
+      begin
+        AStats.RayEmmited(Depth + 1);
+        Ray.Assign{WithoutTime}(Scattered);
+        Result := Result * Attenuation;
+      end
+      else
+        Exit(Result * ColorVec(0.0, 0.0, 0.0));
     end
     else
-      Result :=  ColorVec(0.0, 0.0, 0.0);
-  end
-  else
-    Result := GetEmptyColor(ARay, ADepth);
+      Exit(Result * Scene.GetEmptyColor(ARay));
+
+    Inc(Depth);
+  end;
 end;
 
-function TRenderer.GetNormalColor(const ARay: TRay): TColorVec;
+function TRenderer.GetNormalColor(const ARay: TRay; AStats: TRenderStatistics): TColorVec;
 
   function Vec2Color(const AVec: TVec3F): TColorVec;
   begin
@@ -522,6 +653,7 @@ var
   Hit: TRayHit;
   Point, Normal: TVec3F;
 begin
+  AStats.RayEmmited(0);
   if Scene.Hit(ARay, 0, MaxSingle, Hit) then
   begin
     Point := ARay.At(Hit.Distance);
@@ -532,7 +664,7 @@ begin
     Result := ColorVec(0.0, 0.0, 0.0);
 end;
 
-function TRenderer.GetDepthColor(const ARay: TRay; ADepth: Integer): TColorVec;
+function TRenderer.GetDepthColor(const ARay: TRay; AStats: TRenderStatistics): TColorVec;
 
   function Depth2Color(ADepth: Integer): TColorVec;
   var
@@ -543,35 +675,40 @@ function TRenderer.GetDepthColor(const ARay: TRay; ADepth: Integer): TColorVec;
   end;
 
 var
+  Depth: Integer;
+  Ray, Scattered: TRay;
   Hit: TRayHit;
   Point, Normal: TVec3F;
-  Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth > Options.DepthLimit then
+  Ray := ARay;
+  Depth := 0;
+  AStats.RayEmmited(Depth);
+  while True do
   begin
-    Result :=  Depth2Color(ADepth);
-    Exit;
-  end;
+    if Depth > Options.DepthLimit then
+      Exit(Depth2Color(Depth));
 
-  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
-  begin
-    Point := ARay.At(Hit.Distance);
-    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
-    if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
+    if Scene.Hit(Ray, 0, MaxSingle, Hit) then
     begin
-      AtomicIncrement(FEmitedRays, 1);
-      Scattered.Time := ARay.Time;
-      Result := GetDepthColor(Scattered, ADepth + 1);
+      Point := Ray.At(Hit.Distance);
+      Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+      if Hit.Primitive.Material.Scatter(Point, Ray.Direction, Normal, Scattered, Attenuation) then
+      begin
+        AStats.RayEmmited(Depth + 1);
+        Ray.Assign{WithoutTime}(Scattered);
+      end
+      else
+        Exit(Depth2Color(Depth));
     end
     else
-      Result := Depth2Color(ADepth);
-  end
-  else
-    Result := Depth2Color(ADepth);
+      Exit(Depth2Color(Depth));
+
+    Inc(Depth);
+  end;
 end;
 
-function TRenderer.GetScatteredAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
+function TRenderer.GetScatteredAtDepth(const ARay: TRay; AStats: TRenderStatistics; ATargetDepth: Integer): TColorVec;
 
   function Vec2Color(const AVec: TVec3F): TColorVec;
   begin
@@ -579,72 +716,85 @@ function TRenderer.GetScatteredAtDepth(const ARay: TRay; ADepth, ATargetDepth: I
   end;
 
 var
+  Depth: Integer;
+  Ray, Scattered: TRay;
   Hit: TRayHit;
   Point, Normal: TVec3F;
-  Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth > Options.DepthLimit then
+  Ray := ARay;
+  Depth := 0;
+  AStats.RayEmmited(Depth);
+  while True do
   begin
-    Result :=  ColorVec(0.0, 0.0, 0.0);
-    Exit;
-  end;
+    if Depth > Options.DepthLimit then
+      Exit(ColorVec(0.0, 0.0, 0.0));
 
-  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
-  begin
-    Point := ARay.At(Hit.Distance);
-    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
-    if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
-      if ADepth <> ATargetDepth then
-      begin
-        AtomicIncrement(FEmitedRays, 1);
-        Scattered.Time := ARay.Time;
-        Result := GetScatteredAtDepth(Scattered, ADepth + 1, ATargetDepth);
-      end
+    if Scene.Hit(Ray, 0, MaxSingle, Hit) then
+    begin
+      Point := Ray.At(Hit.Distance);
+      Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+      if Hit.Primitive.Material.Scatter(Point, Ray.Direction, Normal, Scattered, Attenuation) then
+        if Depth <> ATargetDepth then
+        begin
+          AStats.RayEmmited(Depth + 1);
+          Ray.Assign{WithoutTime}(Scattered);
+        end
+        else
+          Exit(Vec2Color(Scattered.Direction))
       else
-        Result := Vec2Color(Scattered.Direction)
+        Exit(ColorVec(0.0, 0.0, 0.0));
+    end
     else
-      Result := ColorVec(0.0, 0.0, 0.0);
-  end
-  else
-    Result := ColorVec(0.0, 0.0, 0.0);
+      Exit(ColorVec(0.0, 0.0, 0.0));
+
+    Inc(Depth);
+  end;
 end;
 
-function TRenderer.GetColorAtDepth(const ARay: TRay; ADepth, ATargetDepth: Integer): TColorVec;
+function TRenderer.GetColorAtDepth(const ARay: TRay; AStats: TRenderStatistics; ATargetDepth: Integer): TColorVec;
 var
+  Depth: Integer;
+  Ray, Scattered: TRay;
   Hit: TRayHit;
   Point, Normal: TVec3F;
-  Scattered: TRay;
   Attenuation: TColorVec;
 begin
-  if ADepth > ATargetDepth then
+  Ray := ARay;
+  Depth := 0;
+  AStats.RayEmmited(Depth);
+  Result := ColorVec(1.0, 1.0, 1.0);
+  while True do
   begin
-    Result :=  ColorVec(0.0, 0.0, 0.0);
-    Exit;
-  end;
+    if Depth > Options.DepthLimit then
+      Exit(ColorVec(0.0, 0.0, 0.0));
 
-  if Scene.Hit(ARay, 0, MaxSingle, Hit) then
-  begin
-    Point := ARay.At(Hit.Distance);
-    Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
-    if Hit.Primitive.Material.Scatter(Point, ARay.Direction, Normal, Scattered, Attenuation) then
-      if ADepth <> ATargetDepth then
-      begin
-        AtomicIncrement(FEmitedRays, 1);
-        Scattered.Time := ARay.Time;
-        Result := Attenuation * GetColorAtDepth(Scattered, ADepth + 1, ATargetDepth);
-      end
+    if Scene.Hit(Ray, 0, MaxSingle, Hit) then
+    begin
+      Point := Ray.At(Hit.Distance);
+      Normal := Hit.Primitive.GetNormal(Point, Hit.Time);
+      if Hit.Primitive.Material.Scatter(Point, Ray.Direction, Normal, Scattered, Attenuation) then
+        if Depth <> ATargetDepth then
+        begin
+          AStats.RayEmmited(Depth + 1);
+          Ray.Assign{WithoutTime}(Scattered);
+          Result := Result * Attenuation;
+        end
+        else
+          Exit(Result * Attenuation)
       else
-        Result := Attenuation
+        Exit(ColorVec(0.0, 0.0, 0.0));
+    end
     else
-      Result := ColorVec(0.0, 0.0, 0.0);
-  end
-  else
-    if ADepth <> ATargetDepth then
-      Result := ColorVec(0.0, 0.0, 0.0)
-    else
-      Result := GetEmptyColor(ARay, ADepth);
+      if Depth <> ATargetDepth then
+        Exit(ColorVec(0.0, 0.0, 0.0))
+      else
+        Exit(Result * Scene.GetEmptyColor(ARay));
+
+    Inc(Depth);
+  end;
 end;
+{$ENDREGION}
 
 end.
 

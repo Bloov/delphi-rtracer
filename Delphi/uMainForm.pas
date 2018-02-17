@@ -46,6 +46,7 @@ type
     FRenderOptions: TRenderOptions;
     FCancelToken: IOmniCancellationToken;
 
+  protected
     procedure MakeTestScene(ARenderer: TRenderer; ASeed: Integer);
     procedure MakeRandomSpheresScene(ARenderer: TRenderer; ASeed: Integer);
     procedure MakeTestArtefactsScene(ARenderer: TRenderer; ASeed: Integer);
@@ -125,6 +126,7 @@ procedure TMainForm.MakeRandomSpheresScene(ARenderer: TRenderer; ASeed: Integer)
 const
   cLambertProb = 0.75;
   cMetalProb = 0.90;
+  cCount = 1;
 var
   A, B: Integer;
   MatProb: Single;
@@ -139,11 +141,13 @@ begin
   Checker := TCheckerTexture.Create(TConstantTexture.Create(ColorVec(0.2, 0.3, 0.1)),
                                     TConstantTexture.Create(ColorVec(0.9, 0.9, 0.9)), True);
   ARenderer.Scene.Add(TSphere.Create(Vec3F(0, -1000, 0), 1000, TLambertian.Create(Checker)));
-  for A := -11 to 11 do
-    for B := -11 to 11 do
+  for A := -11 * cCount to 11 * cCount do
+    for B := -11 * cCount to 11 * cCount do
     begin
       MatProb := RandomF;
       Center := Vec3F(A + 0.9 * RandomF, 0.2, B + 0.9 * RandomF);
+      Center.X :=  Center.X / cCount;
+      Center.Z :=  Center.Z / cCount;
       if (Center - Vec3F(4, 0.2, 0)).Length > 0.9 then
       begin
         if MatProb < cLambertProb then
@@ -283,7 +287,7 @@ begin
   Image := nil;
   Renderer := TRenderer.Create();
   try
-    Renderer.SetScene(TScene.Create);
+    Renderer.SetScene(TSkyBoxScene.Create);
     MakeRandomSpheresScene(Renderer, 117);
 
     Renderer.Options.CopyFrom(FRenderOptions);
@@ -328,7 +332,7 @@ begin
   btnRenderControl.Caption := 'Cancel Render';
   btnRenderControl.OnClick := btnCancelClick;
 
-  FGlobalRenderer.SetScene(TScene.Create);
+  FGlobalRenderer.SetScene(TSkyBoxScene.Create);
   MakeRandomSpheresScene(FGlobalRenderer, 117);
   //MakeTestArtefactsScene(FGlobalRenderer, 117);
   //MakeTestScene(FGlobalRenderer, 117);

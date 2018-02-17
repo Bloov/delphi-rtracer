@@ -43,6 +43,7 @@ begin
   Result.R := R;
   Result.G := G;
   Result.B := B;
+  Result.Arr[3] := 0;
 end;
 
 { TColorVec }
@@ -51,6 +52,7 @@ begin
   R := Red;
   G := Green;
   B := Blue;
+  Arr[3] := 0;
 end;
 
 constructor TColorVec.Create(Red, Green, Blue: Integer);
@@ -61,6 +63,7 @@ begin
   R := Red * Norm;
   G := Green * Norm;
   B := Blue * Norm;
+  Arr[3] := 0;
 end;
 
 class operator TColorVec.Add(const C1, C2: TColorVec): TColorVec;

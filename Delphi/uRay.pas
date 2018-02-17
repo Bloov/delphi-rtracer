@@ -7,8 +7,6 @@ uses
 
 type
   TRay = packed record
-  private
-    procedure SetDirection(const Value: TVec3F);
   public
     Origin: TVec3F;
     // Do not set explicitly, use property!
@@ -17,8 +15,11 @@ type
     Time: Single;
 
     constructor Create(const AOrigin, ADirection: TVec3F; ATime: Single = 0);
+    procedure Assign(const ARay: TRay);
+    procedure AssignWithTime(const ARay: TRay);
 
     function At(ADistance: Single): TVec3F; inline;
+    procedure SetDirection(const Value: TVec3F);
 
     property Direction: TVec3F read FDirection write SetDirection;
     property InvDirection: TVec3F read FInvDirection;
@@ -35,6 +36,21 @@ begin
   Time := ATime;
   Origin := AOrigin;
   Direction := ADirection;
+end;
+
+procedure TRay.Assign(const ARay: TRay);
+begin
+  Origin := ARay.Origin;
+  FDirection := ARay.FDirection;
+  FInvDirection := ARay.FInvDirection;
+end;
+
+procedure TRay.AssignWithTime(const ARay: TRay);
+begin
+  Origin := ARay.Origin;
+  FDirection := ARay.FDirection;
+  FInvDirection := ARay.FInvDirection;
+  Time := ARay.Time;
 end;
 
 procedure TRay.SetDirection(const Value: TVec3F);

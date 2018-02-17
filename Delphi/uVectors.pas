@@ -24,17 +24,23 @@ type
 
     function Dot(const Vec: TVec2F): Single; inline;
     function Projection(const Vec: TVec2F): TVec2F; inline;
-    function Normalize(): TVec2F; inline;
     function Distance(const Vec: TVec2F): Single; inline;
+    function DistanceSqr(const Vec: TVec2F): Single; inline;
+    function Normalize(): TVec2F; inline;
+    procedure SetNormalized(); inline;
     function Clip(ALength: Single): TVec2F;
     function Stretch(ALength: Single): TVec2F;
     function Lerp(const Target: TVec2F; Time: Single): TVec2F; inline;
+    function ReflectByNormal(const Normal: TVec2F): TVec2F;
+    function Reflect(const Vec: TVec2F): TVec2F;
 
     function Length(): Single; inline;
     function LengthSqr(): Single; inline;
 
     function IsZero(): Boolean;
     function IsAnyZero(): Boolean;
+    function IsNormalized(): Boolean; overload;
+    function IsNormalized(APrecision: Single): Boolean; overload;
     function IsValid(): Boolean;
     function IsInf(): Boolean;
 
@@ -249,6 +255,16 @@ begin
   Result.Y := Y * Norm;
 end;
 
+function TVec2F.Distance(const Vec: TVec2F): Single;
+begin
+  Result := Sqrt(Sqr(X - Vec.X) + Sqr(Y - Vec.Y));
+end;
+
+function TVec2F.DistanceSqr(const Vec: TVec2F): Single;
+begin
+  Result := Sqr(X - Vec.X) + Sqr(Y - Vec.Y);
+end;
+
 function TVec2F.Normalize(): TVec2F;
 var
   Norm: Single;
@@ -258,9 +274,13 @@ begin
   Result.Y := Y * Norm;
 end;
 
-function TVec2F.Distance(const Vec: TVec2F): Single;
+procedure TVec2F.SetNormalized();
+var
+  Norm: Single;
 begin
-  Result := Sqrt(Sqr(X - Vec.X) + Sqr(Y - Vec.Y));
+  Norm := 1 / Sqrt(X * X + Y * Y);
+  X := X * Norm;
+  Y := Y * Norm;
 end;
 
 function TVec2F.Clip(ALength: Single): TVec2F;
@@ -298,6 +318,19 @@ begin
   Result := (1 - Time) * Self + Time * Target;
 end;
 
+function TVec2F.ReflectByNormal(const Normal: TVec2F): TVec2F;
+begin
+  Result := Self - Normal * (2 * (Self * Normal));
+end;
+
+function TVec2F.Reflect(const Vec: TVec2F): TVec2F;
+var
+  Normal: TVec2F;
+begin
+  Normal := Vec.Normalize;
+  Result := Self - Normal * (2 * (Self * Normal));
+end;
+
 function TVec2F.Length(): Single;
 begin
   Result := Sqrt(X * X + Y * Y);
@@ -316,6 +349,16 @@ end;
 function TVec2F.IsAnyZero(): Boolean;
 begin
   Result := (X = 0) or (Y = 0);
+end;
+
+function TVec2F.IsNormalized(): Boolean;
+begin
+  Result := IsNormalized(1e-6);
+end;
+
+function TVec2F.IsNormalized(APrecision: Single): Boolean;
+begin
+  Result := (Abs(Length - 1.0) < APrecision);
 end;
 
 function TVec2F.IsValid(): Boolean;
@@ -386,17 +429,39 @@ begin
 end;
 
 class operator TVec3F.Add(const A: TVec3F; B: Single): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [A];
+  movss  xmm1, [B];
+
+  shufps xmm1, xmm1, 00000000b;
+  addps  xmm0, xmm1;
+
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := A.X + B;
   Result.Y := A.Y + B;
   Result.Z := A.Z + B;
+{$ENDIF}
 end;
 
 class operator TVec3F.Add(A: Single; const B: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movss  xmm0, [A];
+  movups xmm1, [B];
+
+  shufps xmm0, xmm0, 00000000b;
+  addps  xmm0, xmm1;
+
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := A + B.X;
   Result.Y := A + B.Y;
   Result.Z := A + B.Z;
+{$ENDIF}
 end;
 
 class operator TVec3F.Subtract(const A, B: TVec3F): TVec3F;
@@ -415,17 +480,39 @@ begin
 end;
 
 class operator TVec3F.Subtract(const A: TVec3F; B: Single): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movups xmm0, [A];
+  movss  xmm1, [B];
+
+  shufps xmm1, xmm1, 00000000b;
+  subps  xmm0, xmm1;
+
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := A.X - B;
   Result.Y := A.Y - B;
   Result.Z := A.Z - B;
+{$ENDIF}
 end;
 
 class operator TVec3F.Subtract(A: Single; const B: TVec3F): TVec3F;
+{$IFDEF USE_SSE}
+asm
+  movss  xmm0, [A];
+  movups xmm1, [B];
+
+  shufps xmm0, xmm0, 00000000b;
+  subps  xmm0, xmm1;
+
+  movups [Result], xmm0;
+{$ELSE}
 begin
   Result.X := A - B.X;
   Result.Y := A - B.Y;
   Result.Z := A - B.Z;
+{$ENDIF}
 end;
 
 class operator TVec3F.Multiply(const A: TVec3F; B: Single): TVec3F;
@@ -636,7 +723,7 @@ begin
   Result.Z := Z * Norm;
 end;
 
-procedure TVec3F.SetNormalized(); {$IFNDEF USE_SSE}inline;{$ENDIF}
+procedure TVec3F.SetNormalized();
 {$IFDEF USE_SSE}
 asm
   movups  xmm0, [Self];
@@ -701,8 +788,8 @@ const
   cPrecision: Single = 1e-4;
 {$IFDEF USE_SSE}
 asm
-  movups xmm0, [ANormal];
   mov    ebx,  [AlignedMem];
+  movups xmm0, [ANormal];
   movaps xmm7, [ebx + $30]; // SSE_MASK_0FFF
   movaps xmm6, [ebx + $40]; // SSE_MASK_ABS
   movaps xmm1, [ebx + $50]; // SSE_XUnit

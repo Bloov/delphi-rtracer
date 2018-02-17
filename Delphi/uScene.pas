@@ -3,7 +3,7 @@ unit uScene;
 interface
 
 uses
-  uRay, uHitable, uBVH;
+  uRay, uHitable, uBVH, uColor;
 
 type
   TScene = class
@@ -20,6 +20,8 @@ type
     constructor Create;
     destructor Destroy; override;
 
+    function GetEmptyColor(const ARay: TRay): TColorVec; virtual;
+
     function Add(AObject: THitable): Integer;
     procedure Delete(Index: Integer);
 
@@ -29,6 +31,11 @@ type
 
     property Items[Index: Integer]: THitable read GetItem;
     property Count: Integer read FCount;
+  end;
+
+  TSkyBoxScene = class(TScene)
+  public
+    function GetEmptyColor(const ARay: TRay): TColorVec; override;
   end;
 
 implementation
@@ -74,6 +81,11 @@ begin
 
   FCapacity := (FCapacity * 3) div 2;
   SetLength(FItems, FCapacity);
+end;
+
+function TScene.GetEmptyColor(const ARay: TRay): TColorVec;
+begin
+  Result := ColorVec(0.0, 0.0, 0.0); // Black
 end;
 
 function TScene.Add(AObject: THitable): Integer;
@@ -134,6 +146,12 @@ begin
         Result := True;
       end;
   end;
+end;
+
+{ TSkyBoxScene }
+function TSkyBoxScene.GetEmptyColor(const ARay: TRay): TColorVec;
+begin
+  Result := ColorVec(1.0, 1.0, 1.0).Lerp(ColorVec(0.5, 0.7, 1.0), 0.5 * (ARay.Direction.Y + 1));
 end;
 
 end.
